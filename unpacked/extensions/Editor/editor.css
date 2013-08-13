@@ -1,4 +1,4 @@
-.MathJax [isinputfield]
+.MathJax [edisinputfield]
 {
 	color: black;
 	display:inline-block;
@@ -8,9 +8,17 @@
 	background-color : rgba(0,255,0,0.1);
 }
 
+.MathJax [emptyMRow]
+{
+	cursor:text;
+	outline: 1px dotted #ccc;
+	min-width: .5em !important;
+	min-height:1em;
+}
+
 .MathJax [selected]
 {
-	outline : solid #ccc 1px;
+	outline : solid #ccc 1px !important;
 	background-color : white!important;
 }
 
