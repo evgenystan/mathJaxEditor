@@ -33,6 +33,7 @@
 			
 			config : 
 				{
+					nbsp	: String.fromCharCode(160),
 					OutputJax : "HTML-CSS",
 					blinkDelay : 550,
 					highlightingDelay : 200,
@@ -46,8 +47,8 @@
 					
 					ED.Event.focusObj.blinkerSpan = HTML.Element("span", {style : {display:"inline-block", visibility : "hidden", width: "1px", position:"absolute", backgroundColor : "black"}});
 					
-					this.Event.MOUSEX = this.config.MOUSEX;
-					this.Event.MOUSEY = this.config.MOUSEY;
+					ED.Event.MOUSEX = ED.config.MOUSEX;
+					ED.Event.MOUSEY = ED.config.MOUSEY;
 				}
 		};
 
@@ -92,6 +93,227 @@
 			return false;
 		},
 		
+		ProcessMousemove : function (evt, math)
+			{
+				var obj = this.checkSpan(evt.target),
+					XPos = evt[this.MOUSEX],
+					YPos = evt[this.MOUSEY],
+					objRect = obj.getBoundingClientRect(),
+					def = {},
+					side=-1;
+	
+				if (((XPos - objRect.left)/objRect.width)>1/2)
+				{
+					side = 1;
+				}
+				
+				MathJax.Message.Set("Span: "+evt.target.id+"\nside: "+side,null,500);
+				
+				if ((this.highlightingObj.possibleHighlight)&&(((this.highlightingObj.startScreenX - XPos)^2 + (this.highlightingObj.startScreenY - YPos)^2)>100))
+				{//The highlighting timer haven't fired yet, but the mouse is moved by at least 10 pixels distance
+					this.highlightingObj.setinProgress(true);
+				}
+
+				if(this.highlightingObj.inProgress)
+				{//We are selecting stuff
+					if(this.highlightingObj.start==null)// it should not be
+					{
+						this.highlightingObj.setstart(this.focusObj.clickSpan);
+						this.highlightingObj.setstartside(this.focusObj.clickSide);
+					}
+		
+					this.highlightingObj.setend(obj);
+					this.highlightingObj.setendside(side);
+					this.highlightingObj.highlightNodes();
+				}
+				else if(this.highlightingObj.draggingOn)
+				{
+/*					if(editableobj)
+					{
+						if(isHighlighted(obj))
+						{
+							clearClassName(mathRoot,'draggignon');
+							attachClassName(mathRoot,'draggignnodrop');
+						}
+						else
+						{
+							clearClassName(mathRoot,'draggignnodrop');
+							attachClassName(mathRoot,'draggignon');
+						}
+					}
+					else
+					{
+						clearClassName(mathRoot,'draggignon');
+						attachClassName(mathRoot,'draggignnodrop');
+					}*/
+				}
+				//Mouse is just moving
+				if(math)
+				{
+/*					if (stylestring!=null)
+					{
+						var parentBlink=/blink-*parent/.test(stylestring),
+							blinkLeftOnly=/blink-*\w*-*left/.test(stylestring),
+							blinkRightOnly=/blink-*\w*-*right/.test(stylestring);
+				
+						//**********************************************DO NOW insert the code of finding the right item to blink	
+				
+						obj.removeAttribute('style');
+	
+						if (side=="right")
+						{
+							obj.setAttribute('style',stylestring.replace(/border.*[^;];/,"")+"border-right: 1px solid black ;");
+						}
+						else
+						{
+							obj.setAttribute('style',stylestring.replace(/border.*[^;];/,"")+"border-left: 1px solid black ;");
+						}
+					}
+					else
+					{
+						if (side=="right")
+						{
+							obj.setAttribute('style',"border-right: 1px solid black ;");
+						}
+						else
+						{
+							obj.setAttribute('style',"border-left: 1px solid black ;");
+						}
+					}*/
+				}
+				return this.False(evt);
+			},
+		
+		ProcessMouseup : function (evt, math)
+			{
+				var def = {};
+				
+				if (this.highlightingObj.possibleHighlight)
+				{
+					def.timer = null;
+					def.possibleHighlight = false;
+					this.highlightingObj.unHighlightNodes();
+				}
+				else if (this.highlightingObj.inProgress) 
+				{
+					def.timer = null;
+					def.inProgress = false;
+					def.possibleHighlight = false;
+					def.draggingOn = false;
+					def.possibleDrag = false;
+				}
+				else if (this.highlightingObj.draggingOn) 
+				{
+/*					var obj=evt.target,emptyContainerCheck=false;
+		
+					var hnl=highlightedNodes.length;
+		
+					mathDraggingOn=false;
+					clearClassName(mathRoot,'draggignon');
+					clearClassName(mathRoot,'draggignnodrop');
+
+					//Drop everything if we can.
+		
+					var receivermrow=obj;
+		
+					var XPos = evt[this.MOUSEX];
+					var YPos = evt[this.MOUSEY];
+   
+					var objRect = obj.getBoundingClientRect();
+					var objTop = Math.round(objRect.top),
+						objLeft = Math.round(objRect.left),
+						objWidth = obj.scrollWidth,
+						objHeight = obj.scrollHeight;	
+		
+					var side="left";
+		
+					if (!(/selectable/.test(obj.getAttribute('class'))))
+					{
+						receivermrow=findParentMRow(obj);
+						if (((XPos-objLeft)/objWidth)>1/2)
+						{
+							if (obj.nextElementSibling)
+							{
+								obj=obj.nextElementSibling;
+							}
+							else
+							{
+								side="right";
+							}
+						}
+					}
+					else
+					{
+						if (((XPos-objLeft)/objWidth)>1/2)
+						{
+							obj=obj.lastElementChild;
+							side="right";
+						}
+						else
+						{
+							obj=obj.firstElementChild;
+						}
+					}
+		
+					if((receivermrow!=null)&&(obj!=null))
+					{
+						if(!isHighlighted(obj))
+						{
+							var objParent=obj.parentNode;
+				
+							if(/empty/.test(receivermrow.getAttribute('class')))
+							{
+								emptyContainerCheck=true;
+							}
+				
+							if(side=="left")
+							{
+								for (var i=0;i<hnl;i++)
+								{
+									objParent.insertBefore(highlightedNodes[i],obj);
+								}
+							}
+							else
+							{
+								for (var i=0;i<hnl;i++)
+								{
+									objParent.appendChild(highlightedNodes[i]);
+								}
+							}
+				
+							mathBlinkSetUp(highlightedNodes[hnl-1],"right",receivermrow);
+				
+							if (mathDraggingObj.source.childElementCount<1)
+							{//Container had become empty
+								if (/selectable/.test(mathDraggingObj.source.getAttribute('class')))
+								{
+									insertEmptyElement(mathDraggingObj.source);
+								}
+							}
+							else if ((mathDraggingObj.source.childElementCount==1)&&(/homogeneous/.test(mathDraggingObj.source.firstElementChild.getAttribute('class'))))
+							{
+								if (mathDraggingObj.source.firstElementChild.childElementCount<1)
+								{//remove the empty <mrow> and make the parent <selectable mrow> empty
+									mathDraggingObj.source.removeChild(mathDraggingObj.source.firstElementChild);
+									insertEmptyElement(mathDraggingObj.source);
+								}
+							}
+							if (emptyContainerCheck)
+							{
+								removeEmptyElement(receivermrow);
+								receivermrow.setAttribute('class',receivermrow.getAttribute('class').replace(/\s*empty/,""));
+							}
+						}
+					}	*/	
+				}
+				else
+				{
+					this.highlightingObj.unHighlightNodes();
+				}
+				this.highlightingObj.setData(def);
+				return this.False(evt);
+			},
+		
 		ProcessMousedown : function (evt, math)
 			{
 				if ((evt.altKey)||(evt.ctrlKey)||(evt.metaKey))
@@ -101,26 +323,19 @@
 				{
 					if (evt.button==this.LEFTBUTTON)
 					{//if left mouse button is pressed
-		
 						this.focusObj.suspendBlinking();
 			
-						var obj = evt.target;
-						var XPos = evt[this.MOUSEX];
-						var YPos = evt[this.MOUSEY];
-		   
-						var objRect = obj.getBoundingClientRect();
-						var objTop = Math.round(objRect.top),
-							objLeft = Math.round(objRect.left),
-							objWidth = obj.scrollWidth,
-							objHeight = obj.scrollHeight;
-				
-						var side=-1;
+						var obj = this.checkSpan(evt.target),
+							XPos = evt[this.MOUSEX],
+							YPos = evt[this.MOUSEY],
+							objRect = obj.getBoundingClientRect(),
+							side=-1;
+	
+						if (((XPos - objRect.left)/objRect.width)>1/2)
+						{
+							side = 1;
+						}
 			
-						if (((XPos-objLeft)/objWidth)>1/2) side=1;
-			
-						mathRoot=obj;
-						while (mathRoot.nodeName!="math") mathRoot=mathRoot.parentNode;
-					
 						if (this.highlightingObj.highlightedNodes.length==0)
 						{
 							if (evt.shiftKey)
@@ -137,24 +352,28 @@
 									try {clearTimeout( mathHighlightingTimer );} catch(e){};
 									try {clearTimeout( mathDraggingTimer );} catch(e){};
 						
-									mathHighlightingInProgress=true;*/
-								}
+									mathHighlightingInProgress=true;
+								}*/
 							}
 							else
 							{
 								this.highlightingObj.setData({
+										possibleHighlight: true,
+										possibleDrag	 : false,
+										jax			: HUB.getJaxFor(evt.currentTarget),
 										start		: obj,
 										startside	: side,
+										end			: null,
+										endside		: 0,
 										startScreenX: XPos,
 										startScreenY: YPos,
-										timer		: setTimeout(CALLBACK([this.highlightingObj,this.highlightingObj.setinProgress()]),ED.config.highlightingDelay); // Initiate highlighting after a delay
+										timer		: setTimeout(CALLBACK(["setinProgress",this.highlightingObj,true]),ED.config.highlightingDelay) // Initiate highlighting after a delay
 									});
-							}				
-							if (evt. preventDefault) evt.preventDefault();
+							}
 						}
 						else
 						{
-							if (evt.shiftKey)
+/*							if (evt.shiftKey)
 							{//check if shift key was pressed
 								if(mathHighlightingObj.start!=null)
 								{
@@ -194,231 +413,13 @@
 								mathHighlightingTimer=setTimeout(function (){unHighlightNodes();mathHighlightingInProgress=true;},200);
 					
 								if (evt. preventDefault) evt.preventDefault();
-							}
+							}*/
 						}
+						return this.False(evt);
 					}
 				}
 			},
 /*
-function mathOnMouseDown(evt)
-{
-}
-
-function mathOnMouseUp(evt)
-{
-	try {clearTimeout( mathHighlightingTimer );} catch(e){};
-	try {clearTimeout( mathDraggingTimer );} catch(e){};
-	
-	if (mathHighlightingInProgress) 
-	{
-		for (var i=0;i<highlightedNodes.length;i++)
-		{
-			clearClassName(highlightedNodes[i],'hlinprogress');
-			attachClassName(highlightedNodes[i],'highlighted');
-		}
-		mathHighlightingInProgress=false;
-		mathDraggingOn=false;
-	}
-	else if (mathDraggingOn) 
-	{
-		var obj=evt.target,emptyContainerCheck=false;
-		
-		var hnl=highlightedNodes.length;
-		
-		mathDraggingOn=false;
-		clearClassName(mathRoot,'draggignon');
-		clearClassName(mathRoot,'draggignnodrop');
-
-		//Drop everything if we can.
-		
-		var receivermrow=obj;
-		
-		var XPos = evt.clientX;
-		var YPos = evt.clientY;
-	   
-		var objRect = obj.getBoundingClientRect();
-		var objTop = Math.round(objRect.top),
-			objLeft = Math.round(objRect.left),
-			objWidth = obj.scrollWidth,
-			objHeight = obj.scrollHeight;	
-		
-		var side="left";
-		
-		if (!(/selectable/.test(obj.getAttribute('class'))))
-		{
-			receivermrow=findParentMRow(obj);
-			if (((XPos-objLeft)/objWidth)>1/2)
-			{
-				if (obj.nextElementSibling)
-				{
-					obj=obj.nextElementSibling;
-				}
-				else
-				{
-					side="right";
-				}
-			}
-		}
-		else
-		{
-			if (((XPos-objLeft)/objWidth)>1/2)
-			{
-				obj=obj.lastElementChild;
-				side="right";
-			}
-			else
-			{
-				obj=obj.firstElementChild;
-			}
-		}
-		
-		if((receivermrow!=null)&&(obj!=null))
-		{
-			if(!isHighlighted(obj))
-			{
-				var objParent=obj.parentNode;
-				
-				if(/empty/.test(receivermrow.getAttribute('class')))
-				{
-					emptyContainerCheck=true;
-				}
-				
-				if(side=="left")
-				{
-					for (var i=0;i<hnl;i++)
-					{
-						objParent.insertBefore(highlightedNodes[i],obj);
-					}
-				}
-				else
-				{
-					for (var i=0;i<hnl;i++)
-					{
-						objParent.appendChild(highlightedNodes[i]);
-					}
-				}
-				
-				mathBlinkSetUp(highlightedNodes[hnl-1],"right",receivermrow);
-				
-				if (mathDraggingObj.source.childElementCount<1)
-				{//Container had become empty
-					if (/selectable/.test(mathDraggingObj.source.getAttribute('class')))
-					{
-						insertEmptyElement(mathDraggingObj.source);
-					}
-				}
-				else if ((mathDraggingObj.source.childElementCount==1)&&(/homogeneous/.test(mathDraggingObj.source.firstElementChild.getAttribute('class'))))
-				{
-					if (mathDraggingObj.source.firstElementChild.childElementCount<1)
-					{//remove the empty <mrow> and make the parent <selectable mrow> empty
-						mathDraggingObj.source.removeChild(mathDraggingObj.source.firstElementChild);
-						insertEmptyElement(mathDraggingObj.source);
-					}
-				}
-				if (emptyContainerCheck)
-				{
-					removeEmptyElement(receivermrow);
-					receivermrow.setAttribute('class',receivermrow.getAttribute('class').replace(/\s*empty/,""));
-				}
-			}
-		}		
-	}
-	else
-	{
-		unHighlightNodes();
-	}
-	
-	mathResumeBlinking();
-}
-
-function mathOnMouseMove(evt)
-{
-	var obj = evt.target,stylestring=obj.getAttribute('style');
-	var XPos = evt.clientX;
-	var YPos = evt.clientY;
-   
-	var objRect = obj.getBoundingClientRect();
-	var objTop = Math.round(objRect.top),
-		objLeft = Math.round(objRect.left),
-		objWidth = obj.scrollWidth,
-		objHeight = obj.scrollHeight;
-		
-	var side="left",
-		editableobj=isEditable(obj);
-	
-	if (((XPos-objLeft)/objWidth)>1/2) side="right";
-	
-	if(mathHighlightingInProgress)
-	{//We are selecting stuff
-		if(mathHighlightingObj.start==null)// it should not be
-		{
-			mathHighlightingObj.start=mathBlinkingObj.obj;
-			mathHighlightingObj.startside=mathBlinkingObj.side;
-		}
-		
-		mathHighlightingObj.end=obj;
-		mathHighlightingObj.endside=side;
-		
-		highlightNodes("hlinprogress");
-	}
-	else if(mathDraggingOn)
-	{
-		if(editableobj)
-		{
-			if(isHighlighted(obj))
-			{
-				clearClassName(mathRoot,'draggignon');
-				attachClassName(mathRoot,'draggignnodrop');
-			}
-			else
-			{
-				clearClassName(mathRoot,'draggignnodrop');
-				attachClassName(mathRoot,'draggignon');
-			}
-		}
-		else
-		{
-			clearClassName(mathRoot,'draggignon');
-			attachClassName(mathRoot,'draggignnodrop');
-		}
-	}
-	//Mouse is just moving
-	if(editableobj)
-	{
-		if (stylestring!=null)
-		{
-			var parentBlink=/blink-*parent/.test(stylestring),
-				blinkLeftOnly=/blink-*\w*-*left/.test(stylestring),
-				blinkRightOnly=/blink-*\w*-*right/.test(stylestring);
-				
-			//**********************************************DO NOW insert the code of finding the right item to blink	
-				
-			obj.removeAttribute('style');
-	
-			if (side=="right")
-			{
-				obj.setAttribute('style',stylestring.replace(/border.*[^;];/,"")+"border-right: 1px solid black ;");
-			}
-			else
-			{
-				obj.setAttribute('style',stylestring.replace(/border.*[^;];/,"")+"border-left: 1px solid black ;");
-			}
-		}
-		else
-		{
-			if (side=="right")
-			{
-				obj.setAttribute('style',"border-right: 1px solid black ;");
-			}
-			else
-			{
-				obj.setAttribute('style',"border-left: 1px solid black ;");
-			}
-		}
-	}
-	if (evt. preventDefault) evt.preventDefault();
-}
-
 function mathOnMouseOut(evt)
 {
 	var obj = evt.target,stylestring=obj.getAttribute('style');
@@ -450,7 +451,7 @@ function mathOnMouseOut(evt)
 					this.focusObj.blur();
 					
 					var span = evt.target, spanMRow = (evt.currentTarget)?(evt.currentTarget):(math), side = -1,
-						jax = this.focusObj.jax = HUB.getJaxFor(span), def,
+						jax = HUB.getJaxFor(span), def,
 						spanRect = span.getBoundingClientRect();
 					
 					span = this.checkSpan(span);
@@ -460,7 +461,8 @@ function mathOnMouseOut(evt)
 						side = 1;
 					}
 					
-					def = this.findMMLelements(span,spanMRow,jax,side);
+					def = this.focusObj.findMMLelements(span,spanMRow,jax,side);
+					def.jax = jax;
 					this.focusObj.setData(def);
 					
 					if(this.focusObj.inputField)
@@ -517,24 +519,24 @@ function mathOnMouseOut(evt)
 			{
 				if((evt)&&(evt.target))
 				{
-					if(!evt.target.isMathJax)
+					if(!evt.target.isMathJax)// Click is not on math object
 					{
-						if(ED.Event.focusObj.mRow)
+						if(ED.Event.focusObj.mRow)//if any math object holds focus, blur the focus and cancel the event
 						{
 							ED.Event.focusObj.blur();
 							return ED.Event.False(evt);
 						}
 					}
 					else
-					{
+					{// click is on a MathJax object
 						var iterator = evt.target;
 						while (iterator)
 						{
 							if(iterator.className == "math") {iterator = null;}
-							else if((iterator.EDisInputField)&&(iterator.EDisInputField==true)) {return;}
+							else if((iterator.EDisInputField)&&(iterator.EDisInputField==true)) {return;}//We clicked on an object that can receive focus, let the event propagate further
 							else {iterator = iterator.parentNode;}
 						}
-						if(ED.Event.focusObj.mRow)
+						if(ED.Event.focusObj.mRow)// no \inputfield parent have been found, blur the focus, if necessary
 						{
 							ED.Event.focusObj.blur();
 							return ED.Event.False(evt);
@@ -544,9 +546,10 @@ function mathOnMouseOut(evt)
 			},
 		highlightingObj :
 			{// This object holds and proceses events that simulate highlighting and drag and drop activities.
-				SUPER				: EVENT,
+				jax					:null,
 				highlightedNodes	:[],
 				inProgress			:false,
+				possibleHighlight	:false,
 				timer				:null,
 				
 				start				:null,//Where did the selection start
@@ -563,12 +566,64 @@ function mathOnMouseOut(evt)
 				topparent			:null,//least common ancestor
 				
 				draggingOn			:false,
+				possibleDrag		:false,
 				draggingTimer		:null,
 				startScreenX		:0,
 				startScreenY		:0,
 				source				:null,
 	
 				insertedObj			:null,
+				
+				setinProgress : function (bool)
+					{
+						if(bool)
+						{
+							if((this.possibleHighlight) &&(!this.inProgress))this.inProgress = true;
+							this.draggingOn = false;
+							this.setpossibleHighlight(false);
+							this.setpossibleDrag(false);
+							this.settimer(null);
+						}
+						else
+						{
+							this.relabelHighlightedNodes();
+							this.inProgress = false;
+							this.draggingOn = false;
+							this.setpossibleHighlight(false);
+							this.setpossibleDrag(false);
+							this.settimer(null);
+						}
+					},
+					
+				setpossibleHighlight : function (bool)
+					{
+						this.possibleHighlight = bool;
+					},
+				
+				setdraggingOn : function (bool)
+					{
+						if(bool)
+						{
+							this.draggingOn = true;
+							this.inProgress = false;
+							this.setpossibleHighlight(false);
+							this.setpossibleDrag(false);
+							this.setdraggingTimer(null);
+						}
+						else
+						{
+							this.draggingOn = false;
+							this.inProgress = false;
+							this.setpossibleHighlight(false);
+							this.setpossibleDrag(false);
+							this.setdraggingTimer(null);
+						}
+					},
+					
+				setpossibleDrag : function (bool)
+					{
+						this.possibleDrag = bool;
+					},
 				
 				setData : function (data)
 					{
@@ -587,27 +642,112 @@ function mathOnMouseOut(evt)
 							}
 						}
 					},
+				
+				setjax : function (jax)
+					{
+						this.jax = jax;
+					},
+				
+				settopparent : function (node)
+					{
+						this.topparent = node;
+					},
 					
+				settopright : function (node)
+					{
+						this.topright = node;
+					},
+					
+				settoprightIndex : function (i)
+					{
+						this.toprightIndex = i;
+					},
+					
+				settopleft : function (node)
+					{
+						this.topleft = node;
+					},
+					
+				settopleftIndex : function (i)
+					{
+						this.topleftIndex = i;
+					},
+					
+				setstartside : function (side) {this.startside = side},
+				setstartScreenX : function (x) {this.startScreenX = x},
+				setstartScreenY : function (y) {this.startScreenY = y},
+				setendside : function (side) {this.endside = side},
+				
+				setstartTree : function (tree) {this.startTree = tree},
+				setendTree : function (tree) {this.endTree = tree},
+				
+				setstart : function (node)
+					{
+						this.start = node;
+					},
+					
+				setend : function (node)
+					{
+						this.end = node;
+					},
+					
+				setdraggingTimer : function (timerObj)
+					{
+						if (this.draggingTimer) {try{clearTimeout(this.draggingTimer)}catch(e){};}
+						if (this.timer) {try{clearTimeout(this.timer)}catch(e){};this.timer=null}
+						
+						this.draggingTimer = timerObj;
+					},
+					
+				settimer : function (timerObj)
+					{
+						if (this.draggingTimer) {try{clearTimeout(this.draggingTimer)}catch(e){};this.draggingTimer = null}
+						if (this.timer) {try{clearTimeout(this.timer)}catch(e){}}
+						
+						this.timer = timerObj;
+					},
+				unHighlightNodes : function () 
+					{
+						var item;
+						
+						for (i=0,m=this.highlightedNodes.length;i<m;i++)
+						{
+							item = this.highlightedNodes[i];
+							
+							if (item.EDisHighlighted)
+							{
+								delete item.EDisHighlighted;
+								delete item.extraAttributes.ishighlighted;
+								item.DOMSpan.removeAttribute("ishighlighted");
+								item.DOMSpan.removeAttribute("hlinprogress");
+								delete item.DOMSpan;
+							}
+						}
+						this.highlightedNodes = [];
+					},
+				
+				relabelHighlightedNodes : function ()
+					{
+						var item;
+						
+						for (i=0,m=this.highlightedNodes.length;i<m;i++)
+						{
+							item = this.highlightedNodes[i];
+							
+							if (item.EDisHighlighted)
+							{
+								item.DOMSpan.setAttribute("ishighlighted","true");
+								item.DOMSpan.removeAttribute("hlinprogress");
+							}
+						}
+					},
+				
 				sethighlightedNodes : function () // adds the nodes to the highlightedNodes array
 					{
 						if(this.highlightedNodes)
 						{
+							if (this.highlightedNodes.length>0) this.unHighlightNodes();
 							var item;
-							
-							for (i=0,m=highlightedNodes.length;i<m;i++)
-							{
-								item = highlightedNodes[i];
-								
-								if (item.EDisHighlighted)
-								{
-									delete item.EDisHighlighted;
-									delete item.extraAttributes.ishighlighted;
-									item.DOMSpan.removeAttribute("ishighlighted");
-									delete item.DOMSpan;
-								}
-							}
-							highlightedNodes = [];
-							
 							if (arguments&&arguments[0])
 							{
 								for (i=0,m=arguments.length;i<m;i++)
@@ -625,9 +765,9 @@ function mathOnMouseOut(evt)
 											else itemitem.extraAttributes = {ishighilighted : true};
 								
 											itemitem.DOMSpan = document.getElementById ("MathJax-Span-"+itemitem.spanID);
-											itemitem.DOMSpan.setAttribute("ishighlighted","true");
+											itemitem.DOMSpan.setAttribute("hlinprogress","true");
 										}
-										highlightedNodes.concat(item);
+										this.highlightedNodes.push.apply(this.highlightedNodes,item);
 									}
 									else
 									{
@@ -639,7 +779,7 @@ function mathOnMouseOut(evt)
 								
 											item.DOMSpan = document.getElementById ("MathJax-Span-"+item.spanID);
 											item.DOMSpan.setAttribute("ishighlighted","true");
-											highlightedNodes.push(item);
+											this.highlightedNodes.push(item);
 										}
 									}
 								}
@@ -650,101 +790,209 @@ function mathOnMouseOut(evt)
 				
 				findLCA :	function () //Finds least common ancestor of highlighted MML elements. Returns null if elements are not in a common \inputfield
 					{
-						var def = null;
-						if (this.start == this.end) 
-						{
-							if(this.startside!=this.endside)
+						var def = {topparent : null},
+							MMLstart,MMLend;
+						
+						if(this.start && this.end)
+						{				
+							MMLstart = EVENT.locateCorrespondingMML(this.start,this.jax.root)
+							MMLend = EVENT.locateCorrespondingMML(this.end,this.jax.root)
+						
+							if (this.start == this.end) 
 							{
-								var item = this.start;
 								def=
 									{
-										startTree 	: [item], 
-										endTree 	: [item], 
-										topleft 	: item,
+										startTree 	: [MMLstart], 
+										endTree 	: [MMLstart], 
+										topleft 	: MMLstart,
 										topleftIndex: 0,
-										topright 	: item,
+										topright 	: MMLstart,
 										toprightIndex: 0,
-										topparent 	: item.parent
+										topparent 	: MMLstart.parent
 									};
-							}	
-							return def; //just to speed things up in the beginning of selection
-						}
+								return def; //just to speed things up in the beginning of selection
+							}
 						
-						var parent1list=[],parent2list=[];
+							var parent1list=[MMLstart],parent2list=[MMLend];
 	
-						var parentnode=this.start, mathRoot = null, l1,l2,i=1;
+							var parentnode=MMLstart, mathRoot = null, l1,l2,i=1;
 	
-						while (!parentnode.EDisInputField)
-						{// loop through all ancestors of start
-							parentnode=parentnode.parent;
-							parent1list.push(parentnode);
-						}
-						parentnode=this.end;
-						while (!parentnode.EDisInputField)
-						{// loop through all ancestors of end
-							parentnode=parentnode.parent;
-							parent2list.push(parentnode);
-						}
+							while (!parentnode.EDisInputField)
+							{// loop through all ancestors of start
+								parentnode=parentnode.parent;
+								parent1list.push(parentnode);
+							}
+							parentnode=MMLend;
+							while (!parentnode.EDisInputField)
+							{// loop through all ancestors of end
+								parentnode=parentnode.parent;
+								parent2list.push(parentnode);
+							}
 	
-						l1=parent1list.length;
-						l2=parent2list.length;
+							l1=parent1list.length;
+							l2=parent2list.length;
 	
-						while ((parent1list[l1-i]==parent2list[l2-i])&&(i<=l1)&&(i<=l2))
-						{
-							mathRoot=parent1list[l1-i];
-							i++;
-						}
-						
-						def = 
+							while ((parent1list[l1-i]==parent2list[l2-i])&&(i<=l1)&&(i<=l2))
 							{
-								startTree 	: parent1list, 
-								endTree 	: parent2list, 
-								topleft 	: parent1list[l1-i],
-								topleftIndex: l1-i,
-								topright 	: parent2list[l2-i],
-								toprightIndex: l2-i,
-								topparent 	: mathRoot
-							};
-	
+								mathRoot=parent1list[l1-i];
+								i++;
+							}
+						
+							def = 
+								{
+									startTree 	: parent1list, 
+									endTree 	: parent2list, 
+									topleft 	: parent1list[l1-i],
+									topleftIndex: l1-i,
+									topright 	: parent2list[l2-i],
+									toprightIndex: l2-i,
+									topparent 	: mathRoot
+								};
+						}
 						return def;
 					},
 					
 				highlightNodes : function (def)
 					{
-						if(this.topparent)
+						if((this.start)&&(this.end))
 						{
-							if(this.start == this.end)//We are highlighting a single object
-							{
-								if (this.startside!=this.endside)
-								{
-									this.SUPER.focusObj.suspendBlinking();
-									
-									def.toLeft	= this.start;
-									def.toRight = this.start.getNext();
-									def.mRow	= this.start.findParentMRow();
-
-									this.SUPER.focusObj.setData(def);
-									this.setData({highlightedNodes : [this.start]});
-									
-									return def;
-								}
-							}
-							var indexes = this.topparent.getChildIndexes(this.topleft,this.topright),
-								l,r,direction = 1,temp;
+							if (!def) def = {};
+							this.setData(this.findLCA());
 							
-							l=indexes[0];
-							r=indexes[1];
-							
-							if((l>-1)&&(r>-1))
+							if (this.topparent)
 							{
-								if(l>r)//the selection is going backward
+								if (this.topparent.EDisAtomic)//the parent node cannot be broken into parts and will be highlighted as a whole
 								{
-									direction =-1;
+									this.setData({highlightedNodes : [this.topparent]});
+									return true;
 								}
 								
-								
+								if(this.start == this.end)//We are highlighting a single object
+								{
+									if (this.startside!=this.endside)
+									{
+										this.setData({highlightedNodes : [this.topleft]});
+									
+										return true;
+									}
+									else
+									{
+										this.setData({highlightedNodes : []});
+									
+										return true;
+									}
+								}
+							
+								//highlight the nodes stretching from start to end
+								var indexes = this.topparent.getChildIndexes(this.topleft,this.topright),
+									l,r,direction = 1, temp, templist, tempindex, nodes = [], stack = [],
+									left, right, lefttree, righttree, lside, rside;
+							
+								l=indexes[0];
+								r=indexes[1];
+							
+								if((l>-1)&&(r>-1))
+								{
+									if(l>r)//the selection is going backward
+									{
+										l=indexes[1];
+										r=indexes[0];
+										
+										left = this.topright;
+										right = this.topleft;
+										
+										leftindex = this.toprightIndex;
+										rightindex = this.topleftIndex;
+										
+										righttree = this.startTree;
+										lefttree = this.endTree;
+										
+										rightside = this.startside;
+										leftside = this.endside;
+									}
+									else
+									{
+										right = this.topright;
+										left = this.topleft;
+										
+										rightindex = this.toprightIndex;
+										leftindex = this.topleftIndex;
+										
+										lefttree = this.startTree;
+										righttree = this.endTree;
+										
+										leftside = this.startside;
+										rightside = this.endside;
+									}
+								//process highlighting of the start nodes
+									temp = left;
+									tempindex = leftindex;
+									templist = [];
+									
+									while ((!temp.EDisAtomic) && (tempindex>0))
+									{
+										tempindex--;
+										temp = lefttree[tempindex];
+										
+										for (var j = 1, i = temp.getIndex()+1, m = temp.parent.data.length; i<m;i++,j++)
+										{
+											templist.push(temp.parent.data[m-j]);
+										}
+									}
+									
+									if (tempindex == 0)
+									{// we have descended to the same level as the "selection-start" item. we should see if we need to included it
+										if (leftside == -1) templist.push(temp);
+									}
+									else
+									{// selection started on an item deeper in the tree, we just include the whole parent
+										templist.push(temp);
+									}
+									
+									for (var i=0, m=templist.length;i<m;i++)
+									{
+										nodes.push(templist[m-i-1]);
+									}
+								//highlight all the nodes in-between start and end
+									for (var i = l+1, m=r; i<m;i++)
+									{
+										nodes.push(this.topparent.data[i]);
+									}
+								// process highlighting of the end-nodes
+									temp = right;
+									tempindex = rightindex;
+									templist = [];
+									
+									while ((!temp.EDisAtomic) && (tempindex>0))
+									{
+										tempindex--;
+										temp = righttree[tempindex];
+										
+										for (var j = 0, i = temp.getIndex(); j<i;j++)
+										{
+											templist.push(temp.parent.data[j]);
+										}
+									}
+									
+									if (tempindex == 0)
+									{// we have descended to the same level as the "selection-end" item. we should see if we need to included it
+										if (rightside == 1) templist.push(temp);
+									}
+									else
+									{// selection started on an item deeper in the tree, we just include the whole parent
+										templist.push(temp);
+									}
+									
+									for (var i=0, m=templist.length;i<m;i++)
+									{
+										nodes.push(templist[i]);
+									}
+								//highlight all the nodes
+									this.setData({highlightedNodes : nodes});
+									
+									return true;
+								}
 							}
-							return def;
 						} 
 						return false
 					}
@@ -752,7 +1000,6 @@ function mathOnMouseOut(evt)
 			
 		focusObj :
 			{
-				SUPER : EVENT,
 				Init : function ()
 					{
 						this.suspendBlinking();
@@ -814,6 +1061,12 @@ function mathOnMouseOut(evt)
 						this.inputField		= null;
 						if (this.fieldSpan) 
 						{
+/*							try
+							{
+								this.fieldSpan.removeEventListener("mousedown",ED.Event.Mousedown,true);
+								this.fieldSpan.removeEventListener("mouseup",ED.Event.Mouseup,true);
+								this.fieldSpan.removeEventListener("mousemove",ED.Event.Mousemove,true);
+							} catch(e) {};*/
 							try{this.fieldSpan.removeAttribute("selected");} catch(e){};
 							try{document.removeEventListener('keydown',ED.Event.Keydown,true);} catch(e){};
 						}
@@ -943,120 +1196,160 @@ function mathOnMouseOut(evt)
 				blur : function ()
 					{
 						this.Init();
+					},
+			
+				findMMLelements : function (span, spanMRow, jax, side)
+					{
+						var iterator = jax.root, stack=[iterator],item, def = {clickSide : side, clickSpan : span},
+							spanID = Number(span.id.replace("MathJax-Span-","")),
+							spanMRowID = Number(spanMRow.id.replace("MathJax-Span-",""));
+				
+						if ((iterator)&&(iterator.spanID) && (iterator.spanID==spanMRowID))
+						{// We have found the containing \inputfield
+							def.inputField = iterator;
+							def.mRow = iterator;
+							def.insertAt = 0;
+						}
+						else
+						{// iterate through the mml tree to find the \inputfield element
+							while (stack.length>0)
+							{
+								iterator = stack.pop();
+					
+								if(iterator&&iterator.data)
+								{
+									for (var i=0, m=iterator.data.length;i<m;i++)
+									{
+										item = iterator.data[i];
+							
+										if (item && (item.spanID) && (item.spanID==spanMRowID))
+										{
+											def.inputField = item;
+											def.mRow = item;
+											def.insertAt = 0;
+											iterator = item;
+											stack = [];
+											break;
+										}
+										else
+										{
+											stack.push(item);
+										}
+									}
+								}
+							}
+						}
+				
+						if (((iterator.spanID) && (iterator.spanID==spanID))||(iterator.isEmptyMRow()))
+						{// the click was on the \inputfield, try to figure out if we can focus on children
+							if ((iterator.data)&&(iterator.data.length>0)&&(!iterator.isEmptyMRow())) 
+							{
+								if(side == 1)
+								{
+									item = iterator.data[iterator.data.length-1];
+									item.focusInFromRight(iterator,def);
+								}
+								else
+								{
+									item = iterator.data[0];
+									item.focusInFromLeft(iterator,def);
+								}
+							}
+							else 
+							{// this is an empty mrow, blink in the center
+								def.toRight = null;
+								def.toLeft = null;
+								def.clickSide = 0;
+							}
+						}
+						else
+						{
+							stack=[iterator];
+							while (stack.length>0)
+							{
+								iterator = stack.pop();
+						
+								if(iterator&&iterator.data)
+								{
+									for (var i=0, m=iterator.data.length;i<m;i++)
+									{
+										item = iterator.data[i];
+							
+										if (item&&(item.spanID) && (item.spanID==spanID))
+										{
+											if (side == 1)
+											{
+												item.focusInFromRight(iterator,def);
+												if (i<m-1) {def.toRight = iterator.data[i+1];};
+											}
+											else
+											{
+												item.focusInFromLeft(iterator,def);
+												if (i>0) {def.toLeft = iterator.data[i-1];};
+											}
+											def.mRow = item.findParentMRow();
+											if (def.mRow.isEmptyMRow())
+											{
+												def.toRight = null;
+												def.toLeft = null;
+												def.clickSide = 0;
+											}
+											stack = [];
+											break;
+										}
+										else
+										{
+											stack.push(item);
+										}
+									}
+								}
+							}
+						}
+			
+						return def;
 					}
 			},
 			
 		checkSpan	: function (span)
 			{
 				var iterator = span;
-				while (iterator.id.indexOf("MathJax-Span-") == -1) {iterator = iterator.parentNode}
+				while (iterator) 
+				{
+					if ((iterator.id)&&(iterator.id.indexOf("MathJax-Span-")> -1)) break;
+					iterator = iterator.parentNode;
+				}
 				return iterator;
 			},
-			
-		findMMLelements : function (span, spanMRow, jax, side)
+		
+		locateCorrespondingMML : function (span, root) //searches the MML tree until it finds an MML element that correspond to the given span
 			{
-				var iterator = jax.root, stack=[iterator],item, def = {clickSide : side, clickSpan : span},
-					spanID = Number(span.id.replace("MathJax-Span-","")),
-					spanMRowID = Number(spanMRow.id.replace("MathJax-Span-",""));
-				
-				if ((iterator)&&(iterator.spanID) && (iterator.spanID==spanMRowID))
-				{// We have found the containing \inputfield
-					def.inputField = iterator;
-					def.mRow = iterator;
-					def.insertAt = 0;
-				}
-				else
-				{// iterate through the mml tree to find the \inputfield element
-					while (stack.length>0)
-					{
-						iterator = stack.pop();
+				var spanID = Number(span.id.replace("MathJax-Span-","")),
+					iterator = root, stack=[iterator],item;
 					
-						if(iterator&&iterator.data)
-						{
-							for (var i=0, m=iterator.data.length;i<m;i++)
-							{
-								item = iterator.data[i];
-							
-								if (item && (item.spanID) && (item.spanID==spanMRowID))
-								{
-									def.inputField = item;
-									def.mRow = item;
-									def.insertAt = 0;
-									iterator = item;
-									stack = [];
-									break;
-								}
-								else
-								{
-									stack.push(item);
-								}
-							}
-						}
-					}
-				}
-				
-				if ((iterator.spanID) && (iterator.spanID==spanID))
-				{// the click was on the \inputfield, try to figure out if we can focus on children
-					if ((iterator.data)&&(iterator.data.length>0)) 
-					{
-						if(side == 1)
-						{
-							item = iterator.data[iterator.data.length-1];
-							item.focusInFromRight(iterator,def);
-						}
-						else
-						{
-							item = iterator.data[0];
-							item.focusInFromLeft(iterator,def);
-						}
-					}
-					else 
-					{// this is an empty mrow, blink in the center
-						def.toRight = null;
-						def.toLeft = null;
-						def.clickSide = 0;
-					}
-				}
-				else
+				if ((iterator)&&(iterator.spanID) && (iterator.spanID==spanID)) return iterator;
+				while (stack.length>0)
 				{
-					stack=[iterator];
-					while (stack.length>0)
+					iterator = stack.pop();
+		
+					if(iterator&&iterator.data)
 					{
-						iterator = stack.pop();
-						
-						if(iterator&&iterator.data)
+						for (var i=0, m=iterator.data.length;i<m;i++)
 						{
-							for (var i=0, m=iterator.data.length;i<m;i++)
+							item = iterator.data[i];
+				
+							if (item && (item.spanID) && (item.spanID==spanID))
 							{
-								item = iterator.data[i];
-							
-								if (item&&(item.spanID) && (item.spanID==spanID))
-								{
-									if (side == 1)
-									{
-										item.focusInFromRight(iterator,def);
-										if (i<m-1) {def.toRight = iterator.data[i+1];};
-									}
-									else
-									{
-										item.focusInFromLeft(iterator,def);
-										if (i>0) {def.toLeft = iterator.data[i-1];};
-									}
-									def.mRow = item.findParentMRow();
-									stack = [];
-									break;
-								}
-								else
-								{
-									stack.push(item);
-								}
+								return item;
+							}
+							else
+							{
+								stack.push(item);
 							}
 						}
 					}
 				}
-			
-				return def;
-			}
+				return null;
+			},
 	};
 	
 	MathJax.Hub.Register.StartupHook("onLoad",CALLBACK(ED.Config));
@@ -1317,7 +1610,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					this.stack.env.inInputField = true;
 					var params = this.GetBrackets(name,""),
 						math = this.ParseArg(name,{inInputField : true});
-					// return to original mmlData function and TEXDEF
+					// return to original TEX.Parse
 					TEX.Parse.Augment(ParseOld);
 					
 					var i=0,j ,parens=0, styleStrings = params.split('style');
@@ -1359,6 +1652,25 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					}
 					
 					if (!def.extraAttributes) {def.extraAttributes = {};} def.extraAttributes.EDisInputField=1;
+/*					if((math.isa(MML.mbase))&&(math.data)&&(math.data.length>0))
+					{
+						if((math.isa(MML.mrow))&&(!math.EDisContainer))
+						{
+							delete (math.inferred);
+							math=math.With(def);
+						}
+						else
+						{
+							math = MML.mrow(math).With(def);
+						}
+					}
+					else
+					{
+						def.emptyMRow = true;
+						def.extraAttributes.emptyMRow = true;
+						math = MML.mrow(MML.mphantom("X")).With(def);
+					}*/
+					
 					if((math.isa(MML.mrow))&&(!math.EDisContainer))
 					{
 						delete (math.inferred);
@@ -1370,8 +1682,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					}
 					
 					fieldList.splice(-1,1,def);
-					delete (this.stack.env.inInputField);
-					
+					delete this.stack.env.inInputField;
 					this.Push(math);
 				}
   });
@@ -1412,7 +1723,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 		
 		findParentMRow : function ()
 			{
-				var parent = this.parent;
+				var parent = this;
 				
 				while (parent)
 				{
@@ -1433,7 +1744,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				
 				if (arguments.length>0)
 				{
-					var item;
+					var item, index;
 					
 					indexes = [];
 					
@@ -1442,19 +1753,19 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						for(var i = 0, n=arguments.length;i<n;i++)
 						{
 							item = arguments[i];
+							index = -1;
 							if(item)
 							{
 								for (var j=0,m=this.data.length;j<m;j++)
 								{
 									if (item == this.data[j])
 									{
-										indexes.push(j);
+										index = j;
 										break;
 									}
-									indexes.push(-1);
 								}
 							}
-							else indexes.push(-1);
+							indexes.push(index);
 						}
 					}
 				}
@@ -1579,6 +1890,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 			{
 				var add = {
 								toRight	: this,
+								mRow : this.findParentMRow(),
 								insertAt : this.getIndex(),
 								clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
 								clickSide : -1
@@ -1591,6 +1903,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 			{
 				var add = {
 								toLeft	: this,
+								mRow : this.findParentMRow(),
 								insertAt : this.getIndex()+1,
 								clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
 								clickSide : 1
@@ -1714,6 +2027,45 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 	});
 	
 	MML.mrow.Augment({
+		isEmptyMRow : function ()
+			{
+				if (this.emptyMRow/*this.data && (this.data.length>0)*/) return true;
+				return false;
+			},
+
+		Init : function () 
+			{
+				this.data = [];
+				if (arguments.length >0)
+				{this.Append.apply(this,arguments);}
+				else
+				{
+					if((!this.EDisContainer))
+					{
+						this.SetData(0, MML.mtext(ED.config.nbsp));
+						this.emptyMRow = true;
+						this.extraAttributes = {emptymrow : true};
+					}
+				}
+			},
+			
+		Append : function ()
+			{
+				if ((this.emptyMRow)&&(arguments.length > 0))
+				{
+					delete this.emptyMRow;
+					delete this.extraAttributes.emptymrow;
+					
+					this.data.splice(0,1);
+				}
+				if (this.inferRow && this.data.length) {
+				this.data[0].Append.apply(this.data[0],arguments);
+				} else {
+				for (var i = 0, m = arguments.length; i < m; i++)
+				{this.SetData(this.data.length,arguments[i])}
+				}
+			},
+			
 		EDisAtomic : false,
 		
 		/********* Focusing Code for navigation and clicks ****************************************/
@@ -1734,7 +2086,11 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					else
 					{
 						prev = this.parent;
-						if (prev) {def = prev.focusOutToLeftFromChild(this,def);prev = (def.toLeft)?def.toLeft:def.toRight;def.mRow = prev.findParentMRow();}
+						if (prev) 
+						{
+							def = prev.focusOutToLeftFromChild(this,def);
+							if(!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if(prev) def.mRow = prev.findParentMRow();}
+						}
 					}
 				}
 				
@@ -1757,15 +2113,64 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					else
 					{
 						next = this.parent;
-						if (next) {def = next.focusOutToRightFromChild(this,def);next = (def.toLeft)?def.toLeft:def.toRight;def.mRow = next.findParentMRow();}
+						if (next) 
+						{
+							def = next.focusOutToRightFromChild(this,def);
+							if(!def.mRow) {next = (def.toLeft)?def.toLeft:def.toRight;if(next) def.mRow = next.findParentMRow()};
+						}
 					}
 				}
 				
 				return def
 			},
 		
+		focusOutToRight : function (item, def)
+			{
+				if ((this.isEmptyMRow())&&(this.EDisInputField))
+				{
+					def={};
+				}
+				else
+				{
+					var next = this.parent;
+					if (next) 
+					{
+						def = next.focusOutToRightFromChild(this,def);
+						if(!def.mRow) {next = (def.toLeft)?def.toLeft:def.toRight;if(next) def.mRow = next.findParentMRow()};
+					}
+				}
+				return def;
+			},
+		
+		focusOutToLeft : function (item, def)
+			{
+				if ((this.isEmptyMRow())&&(this.EDisInputField))
+				{
+					def={};
+				}
+				else
+				{
+					var prev = this.parent;
+					if (prev) 
+					{
+						def = prev.focusOutToLeftFromChild(this,def);
+						if(!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if(prev) def.mRow = prev.findParentMRow();}
+					}
+				}
+				return def;
+			},
+		
 		focusInFromLeft : function (item, def)
 			{
+				if (this.isEmptyMRow())
+				{
+					def.toLeft = null;
+					def.toRight = null;
+					def.clickSide = 0;
+					def.mRow = this;
+					
+					return def;
+				}
 				if((this.data)&&(this.data.length>0))
 				{
 					def.toLeft=null;
@@ -1776,6 +2181,15 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 		
 		focusInFromRight : function (item, def)
 			{
+				if (this.isEmptyMRow())
+				{
+					def.toLeft = null;
+					def.toRight = null;
+					def.clickSide = 0;
+					def.mRow = this;
+					
+					return def;
+				}
 				if((this.data)&&(this.data.length>0))
 				{
 					def.toRight=null;
@@ -1786,6 +2200,15 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 		
 		focusLeftToRight : function (item, def)
 			{
+				if (this.isEmptyMRow())
+				{
+					def.toLeft = null;
+					def.toRight = null;
+					def.clickSide = 0;
+					def.mRow = this;
+					
+					return def;
+				}
 				if((this.data)&&(this.data.length>0))
 				{
 					def.toLeft=null;
@@ -1817,6 +2240,15 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 			
 		focusRightToLeft : function (item, def)
 			{
+				if (this.isEmptyMRow())
+				{
+					def.toLeft = null;
+					def.toRight = null;
+					def.clickSide = 0;
+					def.mRow = this;
+					
+					return def;
+				}
 				if((this.data)&&(this.data.length>0))
 				{
 					def.toRight=null;
@@ -1886,11 +2318,14 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				}
 			},
 		HTMLAttachEventListeners : function(span)
-			{
+			{// Every \inputfield should listen to mouse events.
 				span.addEventListener('click',ED.Event.Click,true);
+				span.addEventListener("mousedown",ED.Event.Mousedown,true);
+				span.addEventListener("mouseup",ED.Event.Mouseup,true);
+				span.addEventListener("mousemove",ED.Event.Mousemove,true);
 				
 				if ((this.extraAttributes)&&(this.extraAttributes.selected==true))
-				{
+				{//If the \inputfield is selected, it must listen to the keys
 					document.addEventListener('keydown',ED.Event.Keydown,true);
 				}
 			}
@@ -1917,7 +2352,11 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						else
 						{
 							prev = this.parent;
-							if (prev) {def = prev.focusOutToLeftFromChild(this,def);prev = (def.toLeft)?def.toLeft:def.toRight;def.mRow = prev.findParentMRow();}
+							if (prev) 
+							{
+								def = prev.focusOutToLeftFromChild(this,def);
+								if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight;if(prev) def.mRow = prev.findParentMRow();}
+							}
 						}
 					}
 				
@@ -1943,7 +2382,11 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						else
 						{
 							next = this.parent;
-							if (next) {def = next.focusOutToRightFromChild(this,def);next = (def.toLeft)?def.toLeft:def.toRight;def.mRow = next.findParentMRow();}
+							if (next) 
+							{
+								def = next.focusOutToRightFromChild(this,def);
+								if (!def.mRow) {next = (def.toLeft)?def.toLeft:def.toRight;if(next) def.mRow = next.findParentMRow();}
+							}
 						}
 					}
 				
@@ -2035,7 +2478,11 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						else
 						{
 							prev = this.parent;
-							if (prev) {def = prev.focusOutToLeftFromChild(this,def);prev = (def.toLeft)?def.toLeft:def.toRight;def.mRow = prev.findParentMRow();}
+							if (prev) 
+							{
+								def = prev.focusOutToLeftFromChild(this,def);
+								if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight;if(prev) def.mRow = prev.findParentMRow();}
+							}
 						}
 					}
 				
@@ -2061,7 +2508,11 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						else
 						{
 							next = this.parent;
-							if (next) {def = next.focusOutToRightFromChild(this,def);next = (def.toLeft)?def.toLeft:def.toRight;def.mRow = next.findParentMRow();}
+							if (next) 
+							{
+								def = next.focusOutToRightFromChild(this,def);
+								if (!def.mRow) {next = (def.toLeft)?def.toLeft:def.toRight;if(next) def.mRow = next.findParentMRow();}
+							}
 						}
 					}
 				
@@ -2186,8 +2637,6 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 							def.toRight = null;
 							return this.focusInFromRight(this,def);
 						}
-	/*					next = this.parent;
-						if (next) {def = next.focusOutToRightFromChild(this,def);next = (def.toLeft)?def.toLeft:def.toRight;def.mRow = next.findParentMRow();}*/
 					}
 				
 					return def
@@ -2197,14 +2646,14 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				{
 					var next;
 					def = this.data[this.num].focusLeftToRight(this,def);
-					next = (def.toRight)?def.toRight:def.toLeft;def.mRow = next.findParentMRow();
+					if (!def.mRow) {next = (def.toRight)?def.toRight:def.toLeft; if (next) def.mRow = next.findParentMRow();}
 					return def;
 				},
 			focusRightToLeft : function (item, def)
 				{
 					var prev;
 					def = this.data[this.den].focusRightToLeft(this,def);
-					prev = (def.toLeft)?def.toLeft:def.toRight;def.mRow = prev.findParentMRow();
+					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
 					return def;
 				}
 		});
@@ -2286,7 +2735,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				{
 					var next;
 					def = this.data[this.base].focusLeftToRight(this,def);
-					next = (def.toRight)?def.toRight:def.toLeft;def.mRow = next.findParentMRow();
+					if (!def.mRow) {next = (def.toRight)?def.toRight:def.toLeft; if (next) def.mRow = next.findParentMRow();}
 					return def;
 				},
 			focusRightToLeft : function (item, def)
@@ -2296,7 +2745,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					else if(this.data[this.sub]) prev = this.data[this.sub];
 					else prev = this.data[this.base];
 					def =prev.focusRightToLeft(this,def);
-					prev = (def.toLeft)?def.toLeft:def.toRight;def.mRow = prev.findParentMRow();
+					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
 					return def;
 				}
 		});

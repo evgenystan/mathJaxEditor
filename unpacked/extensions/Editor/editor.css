@@ -1,33 +1,67 @@
+/* Style for any part of math expression that is editable */
 .MathJax [edisinputfield]
 {
 	color: black;
 	display:inline-block;
 	cursor:text;
-	min-width: .5em;
-	min-height:1em;
+	min-width: 1ex;
+	min-height:1ex;
 	background-color : rgba(0,255,0,0.1);
 }
 
+/* If an mrow is empty, render it as a placeholder */
 .MathJax [emptymrow]
 {
 	cursor:text;
 	outline: 1px dotted #ccc;
-	min-width: .5em !important;
-	min-height:1em;
+	display:inline-block;
+	min-width: 0.5em !important;
+	min-height:1ex;
 }
 
+/* Styles for the part of a math expression that currently has focus */
+/* Style for the \inputfield that has been clicked on */
 .MathJax [selected]
 {
 	outline : solid #ccc 1px !important;
 	background-color : white!important;
 }
 
+/* Style for the mrow that will currently receive any input */
 .MathJax [focused]
 {
 	box-shadow: 0px 0px 4px 1px #7777ff;
 	background-color : white;
 }
 
+/* Style for highlighted objects */
+.Mathjax [hlinprogress]
+{
+	background-color:#CACAFF !important;
+	cursor:text;
+/*	border:1px dotted #000000;*/
+}
+
+.Mathjax [hlinprogress] *
+{
+	background-color:#CACAFF !important;
+	cursor:text;
+/*	border:1px dotted #000000;*/
+}
+
+.Mathjax [ishighlighted]
+{
+	background-color:#CACAFF !important;
+	cursor:move;
+/*	border:1px dotted #000000;*/
+}
+
+.Mathjax [ishighlighted] *
+{
+	background-color:#CACAFF !important;
+	cursor:move;
+/*	border:1px dotted #000000;*/
+}
 
 /*************** DEBUG *************/
 .MathJax [lefthand],[righthand]
