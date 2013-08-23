@@ -1330,8 +1330,13 @@ function mathOnMouseOut(evt)
 				while (stack.length>0)
 				{
 					iterator = stack.pop();
-		
-					if(iterator&&iterator.data)
+					
+					if(iterator && iterator.locateMMLhelper)
+					{
+						item = iterator.locateMMLhelper(spanID,stack);
+						if (item!=null) return item;
+					}
+					else if(iterator&&iterator.data)
 					{
 						for (var i=0, m=iterator.data.length;i<m;i++)
 						{
@@ -2750,6 +2755,13 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				}
 		});
 	
+	MML.mfenced.Augment(
+		{
+			locateMMLhelper : function (spanID, stack)
+				{
+					
+				}
+		});
 });
 
 MathJax.Ajax.loadComplete("[MathJax]/extensions/Editor/editor.js");
