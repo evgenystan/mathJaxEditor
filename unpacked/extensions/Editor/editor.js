@@ -795,8 +795,8 @@ function mathOnMouseOut(evt)
 						
 						if(this.start && this.end)
 						{				
-							MMLstart = EVENT.locateCorrespondingMML(this.start,this.jax.root)
-							MMLend = EVENT.locateCorrespondingMML(this.end,this.jax.root)
+							MMLstart = EVENT.locateCorrespondingMML(this.start,this.jax.root,this.startside)
+							MMLend = EVENT.locateCorrespondingMML(this.end,this.jax.root,this.endside)
 						
 							if (this.start == this.end) 
 							{
@@ -1269,7 +1269,24 @@ function mathOnMouseOut(evt)
 							{
 								iterator = stack.pop();
 						
-								if(iterator&&iterator.data)
+								if(iterator && iterator.locateMMLhelper)
+								{
+									item = iterator.locateMMLhelper(spanID,stack,side,def);
+									if (item!=null) 
+									{
+										if(def.clickSide == 1)
+										{
+											item.focusInFromRight(iterator,def);
+										}
+										else
+										{
+											item.focusInFromLeft(iterator,def);
+										}
+										stack = [];
+										break;
+									}
+								}
+								else if(iterator&&iterator.data)
 								{
 									for (var i=0, m=iterator.data.length;i<m;i++)
 									{
@@ -1321,7 +1338,7 @@ function mathOnMouseOut(evt)
 				return iterator;
 			},
 		
-		locateCorrespondingMML : function (span, root) //searches the MML tree until it finds an MML element that correspond to the given span
+		locateCorrespondingMML : function (span, root,side) //searches the MML tree until it finds an MML element that correspond to the given span
 			{
 				var spanID = Number(span.id.replace("MathJax-Span-","")),
 					iterator = root, stack=[iterator],item;
@@ -1333,7 +1350,7 @@ function mathOnMouseOut(evt)
 					
 					if(iterator && iterator.locateMMLhelper)
 					{
-						item = iterator.locateMMLhelper(spanID,stack);
+						item = iterator.locateMMLhelper(spanID,stack,side);
 						if (item!=null) return item;
 					}
 					else if(iterator&&iterator.data)
@@ -2757,9 +2774,153 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 	
 	MML.mfenced.Augment(
 		{
-			locateMMLhelper : function (spanID, stack)
+			locateMMLhelper : function (spanID, stack,side,def)
 				{
+					if ((spanID<this.data.open.spanID)||(spanID > this.data.close.spanID))
+					{
+						return null
+					}
+					else
+					{
+						if (spanID == this.data.open.spanID)
+						{
+							if(side == -1)
+							{
+								if (def) 
+								{
+									def.clickSide = -1;
+									def.toLeft = this.getPrevious();
+								}
+								return this;
+							}
+							else
+							{
+								if (def) 
+								{
+									def.clickSide = -1;
+									def.toLeft = null;
+								}
+								return this.data[0];
+							}
+						}
+						else if (spanID == this.data.close.spanID)
+						{
+							if(side == 1)
+							{
+								if (def) 
+								{
+									def.clickSide = 1;
+									def.toRight = this.getNext();
+								}
+								return this;
+							}
+							else
+							{
+								if (def) 
+								{
+									def.clickSide = 1;
+									def.toRight = null;
+								}
+								return this.data[this.data.length -1];
+							}
+						}
+						else stack.push.apply(stack,this.data);
+					}
+				},
+				
+			focusOutToLeftFromChild : function (child,def)
+				{
+					var prev = child.getPrevious();
 					
+					if (prev)
+					{
+						return prev.focusRightToLeft(this,def)
+					}
+					else
+					{
+						def = this.focusInFromLeft(this,def);
+						if(!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if(prev) def.mRow = prev.findParentMRow();}
+					}
+					
+					return def
+				},
+		
+			focusOutToRightFromChild : function (child,def)
+				{
+					var next = child.getNext();
+					
+					if (next)
+					{
+						return next.focusLeftToRight(this,def);
+					}
+					else
+					{
+						def = this.focusInFromRight(this,def);
+						if(!def.mRow) {next = (def.toLeft)?def.toLeft:def.toRight;if(next) def.mRow = next.findParentMRow()};
+					}
+					
+					return def
+				},
+		
+			focusLeftToRight : function (item, def)
+				{
+					if((this.data)&&(this.data.length>0))
+					{
+						def.toLeft=null;
+						return this.data[0].focusInFromLeft(this,def);
+					}
+					else 
+					{
+						var next = this.getNext();
+					
+						if (next)
+						{
+							def.toLeft = this;
+							return next.focusInFromLeft(this,def);
+						}
+						else
+						{
+							var add = {
+											toRight	: null,
+											toLeft	: this,
+											insertAt : this.getIndex()+1,
+											clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
+											clickSide : 1
+										};
+							for (var id in add) {if (add.hasOwnProperty(id)) {def[id] = add[id]}}
+							return def
+						}
+					}
+				},
+			focusRightToLeft : function (item, def)
+				{
+					if((this.data)&&(this.data.length>0))
+					{
+						def.toRight=null;
+						return this.data[this.data.length - 1].focusInFromRight(this,def);
+					}
+					else 
+					{
+						var prev = this.getPrevious();
+					
+						if (prev)
+						{
+							def.toRight = this;
+							return prev.focusInFromRight(this,def)
+						}
+						else
+						{
+							var add = {
+											toRight	: this,
+											toLeft	: null,
+											insertAt : this.getIndex(),
+											clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
+											clickSide : -1
+										};
+							for (var id in add) {if (add.hasOwnProperty(id)) {def[id] = add[id]}}
+							return def
+						}
+					}
 				}
 		});
 });
