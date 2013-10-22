@@ -201,6 +201,59 @@
 					def.possibleHighlight = false;
 					def.draggingOn = false;
 					def.possibleDrag = false;
+					if (this.highlightingObj.direction ==0)
+					{
+						this.focusObj.resumeBlinking();
+					}
+					else
+					{
+						var bdef, mathItem;
+						
+						if ((this.highlightingObj.highlightedNodes)&&(this.highlightingObj.highlightedNodes.length>0))
+						{
+							bdef = {
+								mRow : this.highlightingObj.highlightedNodes[0].findParentMRow(),
+								clickSide : this.highlightingObj.direction,
+							};
+							if (this.highlightingObj.direction>0)
+							{
+								mathItem = this.highlightingObj.highlightedNodes[this.highlightingObj.highlightedNodes.length-1]
+								bdef.toLeft = mathItem;
+								bdef.clickSpan = document.getElementById("MathJax-Span-"+mathItem.spanID)
+								bdef.toRight = mathItem.getNext();
+							}
+							else
+							{
+								mathItem = this.highlightingObj.highlightedNodes[0];
+								bdef.toRight = mathItem;
+								bdef.clickSpan = document.getElementById("MathJax-Span-"+mathItem.spanID)
+								bdef.toLeft = mathItem.getPrevious();
+							}
+						}
+						else
+						{
+							mathItem = this.highlightingObj.topleft;
+							bdef = {
+								mRow : mathItem.findParentMRow(),
+								clickSide : this.highlightingObj.endside,
+								clickSpan : this.highlightingObj.end
+							};
+							if (this.highlightingObj.endside>0)
+							{
+								bdef.toLeft = mathItem;
+								bdef.toRight = mathItem.getNext();
+							}
+							else
+							{
+								mathitem = this.highlightingObj.highlightedNodes[0];
+								bdef.toRight = mathItem;
+								bdef.toLeft = mathItem.getPrevious();
+							}
+						}
+						
+						this.focusObj.setData(bdef);
+						this.focusObj.startBlinking();
+					}
 				}
 				else if (this.highlightingObj.draggingOn) 
 				{
@@ -311,6 +364,7 @@
 					this.highlightingObj.unHighlightNodes();
 				}
 				this.highlightingObj.setData(def);
+				
 				return this.False(evt);
 			},
 		
@@ -573,6 +627,8 @@ function mathOnMouseOut(evt)
 				source				:null,
 	
 				insertedObj			:null,
+				
+				direction			:0,
 				
 				setinProgress : function (bool)
 					{
@@ -872,12 +928,16 @@ function mathOnMouseOut(evt)
 									if (this.startside!=this.endside)
 									{
 										this.setData({highlightedNodes : [this.topleft]});
+										
+										this.direction = this.endside;
 									
 										return true;
 									}
 									else
 									{
 										this.setData({highlightedNodes : []});
+										
+										this.direction = 0;
 									
 										return true;
 									}
@@ -895,6 +955,7 @@ function mathOnMouseOut(evt)
 								{
 									if(l>r)//the selection is going backward
 									{
+										this.direction = -1;
 										l=indexes[1];
 										r=indexes[0];
 										
@@ -912,6 +973,7 @@ function mathOnMouseOut(evt)
 									}
 									else
 									{
+										this.direction = 1;
 										right = this.topright;
 										left = this.topleft;
 										
@@ -2923,6 +2985,122 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 				}
 		});
-});
+	
+	MML.mroot.Augment(
+		{
+			focusOutToLeftFromChild : function (child,def)
+				{
+					if (child == this.data[0]) //under the root
+					{
+						return this.data[1].focusRightToLeft(this,def) //switch to the root power
+					}
+					else
+					{
+						var prev = this.getPrevious();
+						if(prev)
+						{
+							def.toRight = this;
+							return prev.focusInFromRight(this,def);
+						}
+						else
+						{
+							def.toLeft = null;
+							return this.focusInFromLeft(this,def);
+						}
+					}
+				
+					return def
+				},
+		
+			focusOutToRightFromChild : function (child,def)
+				{
+					if (child == this.data[1])//inside the power
+					{
+						return this.data[0].focusLeftToRight(this,def)//switch to the mrow under the root
+					}
+					else
+					{
+						var next = this.getNext();
+						if(next)
+						{
+							def.toLeft = this;
+							return next.focusInFromLeft(this,def);
+						}
+						else
+						{
+							def.toRight = null;
+							return this.focusInFromRight(this,def);
+						}
+					}
+				
+					return def
+				},
+		
+			focusLeftToRight : function (item, def)
+				{
+					var next;
+					def = this.data[1].focusLeftToRight(this,def);
+					if (!def.mRow) {next = (def.toRight)?def.toRight:def.toLeft; if (next) def.mRow = next.findParentMRow();}
+					return def;
+				},
+			focusRightToLeft : function (item, def)
+				{
+					var prev;
+					def = this.data[0].focusRightToLeft(this,def);
+					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
+					return def;
+				}
+		});
+	
+	MML.msqrt.Augment(
+		{
+			focusOutToLeftFromChild : function (child,def)
+				{
+					var prev = this.getPrevious();
+					if(prev)
+					{
+						def.toRight = this;
+						return prev.focusInFromRight(this,def);
+					}
+					else
+					{
+						def.toLeft = null;
+						return this.focusInFromLeft(this,def);
+					}
+					return def
+				},
+		
+			focusOutToRightFromChild : function (child,def)
+				{
+					var next = this.getNext();
+					if(next)
+					{
+						def.toLeft = this;
+						return next.focusInFromLeft(this,def);
+					}
+					else
+					{
+						def.toRight = null;
+						return this.focusInFromRight(this,def);
+					}
+					return def
+				},
+		
+			focusLeftToRight : function (item, def)
+				{
+					var next;
+					def = this.data[0].focusLeftToRight(this,def);
+					if (!def.mRow) {next = (def.toRight)?def.toRight:def.toLeft; if (next) def.mRow = next.findParentMRow();}
+					return def;
+				},
+			focusRightToLeft : function (item, def)
+				{
+					var prev;
+					def = this.data[0].focusRightToLeft(this,def);
+					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
+					return def;
+				}
+		});
+	});
 
 MathJax.Ajax.loadComplete("[MathJax]/extensions/Editor/editor.js");
