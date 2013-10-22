@@ -186,7 +186,7 @@
 		
 		ProcessMouseup : function (evt, math)
 			{
-				var def = {},bdef;
+				var def = {};
 				
 				if (this.highlightingObj.possibleHighlight)
 				{
@@ -207,24 +207,50 @@
 					}
 					else
 					{
-						bdef = {
-							mRow : this.highlightingObj.highlightedNodes[0].findParentMRow(),
-							clickSide : this.highlightingObj.direction,
-						};
+						var bdef, mathItem;
 						
-						if (this.highlightingObj.direction>0)
+						if ((this.highlightingObj.highlightedNodes)&&(this.highlightingObj.highlightedNodes.length>0))
 						{
-							var m = this.highlightingObj.highlightedNodes.length -1;
-							bdef.toLeft = this.highlightingObj.highlightedNodes[m];
-							bdef.clickSpan = document.getElementById("MathJax-Span-"+this.highlightingObj.highlightedNodes[m].spanID)
-							bdef.toRight = this.highlightingObj.highlightedNodes[m].getNext();
+							bdef = {
+								mRow : this.highlightingObj.highlightedNodes[0].findParentMRow(),
+								clickSide : this.highlightingObj.direction,
+							};
+							if (this.highlightingObj.direction>0)
+							{
+								mathItem = this.highlightingObj.highlightedNodes[this.highlightingObj.highlightedNodes.length-1]
+								bdef.toLeft = mathItem;
+								bdef.clickSpan = document.getElementById("MathJax-Span-"+mathItem.spanID)
+								bdef.toRight = mathItem.getNext();
+							}
+							else
+							{
+								mathItem = this.highlightingObj.highlightedNodes[0];
+								bdef.toRight = mathItem;
+								bdef.clickSpan = document.getElementById("MathJax-Span-"+mathItem.spanID)
+								bdef.toLeft = mathItem.getPrevious();
+							}
 						}
 						else
 						{
-							bdef.toRight = this.highlightingObj.highlightedNodes[0];
-							bdef.clickSpan = document.getElementById("MathJax-Span-"+this.highlightingObj.highlightedNodes[0].spanID)
-							bdef.toLeft = this.highlightingObj.highlightedNodes[0].getPrevious();
+							mathItem = this.highlightingObj.topleft;
+							bdef = {
+								mRow : mathItem.findParentMRow(),
+								clickSide : this.highlightingObj.endside,
+								clickSpan : this.highlightingObj.end
+							};
+							if (this.highlightingObj.endside>0)
+							{
+								bdef.toLeft = mathItem;
+								bdef.toRight = mathItem.getNext();
+							}
+							else
+							{
+								mathitem = this.highlightingObj.highlightedNodes[0];
+								bdef.toRight = mathItem;
+								bdef.toLeft = mathItem.getPrevious();
+							}
 						}
+						
 						this.focusObj.setData(bdef);
 						this.focusObj.startBlinking();
 					}
