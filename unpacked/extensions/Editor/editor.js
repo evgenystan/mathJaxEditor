@@ -45,22 +45,24 @@
 				{
 					document.addEventListener('click',ED.Event.documentClick,true);
 					
-					ED.Event.focusObj.blinkerSpan = HTML.Element("span", {style : {display:"inline-block", visibility : "hidden", width: "1px", position:"absolute", backgroundColor : "black"}});
+					ED.Event.focusObj.blinkerSpan = HTML.Element("span", {style : {display:"inline-block", visibility : "hidden", width: "1px", position:"absolute", backgroundColor : "black",overflow: "hidden"}});
+					
+					ED.Event.focusObj.hiddenInput = HTML.Element("input",{style : {width: "0px",position:"absolute",top:"-1px",left:"-1px",height : "0px",opacity:"0",filter:"alpha(opacity=0)"},type:"text",name:"hiddenInputField"});
 					
 					ED.Event.MOUSEX = ED.config.MOUSEX;
 					ED.Event.MOUSEY = ED.config.MOUSEY;
 				}
 		};
 
-	var SETTINGS = HUB.config.EditorSettings;
+	var SETTINGS = HUB.config.EditorSettings,MML;
 
 	var EVENT = ED.Event = {
 		LEFTBUTTON: 0,           // the event.button value for left button
 		RIGHTBUTTON: 2,          // the event.button value for right button
 		MENUKEY: "altKey",       // the event value for alternate context menu
 		
-		MOUSEX : "clientX",
-		MOUSEY : "clientY",
+		MOUSEX : ED.config.MOUSEX,
+		MOUSEY : ED.config.MOUSEY,
 
 		Keydown: 	function (event) {return EVENT.Handler(event,"Keydown",this)},
 		Keyup:		function (event) {return EVENT.Handler(event,"Keyup",this)},
@@ -505,7 +507,8 @@ function mathOnMouseOut(evt)
 					this.focusObj.blur();
 					
 					var span = evt.target, spanMRow = (evt.currentTarget)?(evt.currentTarget):(math), side = -1,
-						jax = HUB.getJaxFor(span), def,
+						jax = HUB.getJaxFor(span), def, 
+						scr = document.getElementById(jax.inputID);
 						spanRect = span.getBoundingClientRect();
 					
 					span = this.checkSpan(span);
@@ -517,6 +520,7 @@ function mathOnMouseOut(evt)
 					
 					def = this.focusObj.findMMLelements(span,spanMRow,jax,side);
 					def.jax = jax;
+					def.Script = scr;
 					this.focusObj.setData(def);
 					
 					if(this.focusObj.inputField)
@@ -525,6 +529,24 @@ function mathOnMouseOut(evt)
 					}
 					
 					return this.False(evt);
+				}
+			},
+			
+		ProcessKeypress : function (evt,math)
+			{
+				var MML = MathJax.ElementJax.mml;
+				
+				if (this.focusObj.inputField)//Should be always true as we add and remove listeners when changing the focus.
+				{
+					var def = {}, mml, code=evt.charCode, charIn = String.fromCharCode(code);//which button was pressed
+					if(!((evt.ctrlKey)||(evt.altKey)||(evt.metaKey)))//Let the browsers deal with keystrokes
+					{
+						if (/([A-Z]|[a-z])/.test(charIn)) //Letters will be typeset as math identifiers
+						{
+							mml = MML.mi(MML.chars(charIn));
+							this.focusObj.insertElements(mml);
+						}
+					}
 				}
 			},
 		
@@ -548,6 +570,10 @@ function mathOnMouseOut(evt)
 
 						this.focusObj.setData (def);
 						this.focusObj.repositionBlinker();
+						if(this.highlightingObj.highlightedNodes.length>0)
+						{
+							this.highlightingObj.unHighlightNodes();
+						}
 						return this.False(evt);
 					}
 					else if (code==37) //Left arrow. TODO: process arrows with modifiers, like [shift] + [<-] or [Ctrl] + [<-]
@@ -564,6 +590,10 @@ function mathOnMouseOut(evt)
 
 						this.focusObj.setData (def);
 						this.focusObj.repositionBlinker();
+						if(this.highlightingObj.highlightedNodes.length>0)
+						{
+							this.highlightingObj.unHighlightNodes();
+						}
 						return this.False(evt);
 					}
 				}
@@ -1064,8 +1094,11 @@ function mathOnMouseOut(evt)
 			{
 				Init : function ()
 					{
+						MML = MathJax.ElementJax.mml;
+						
 						this.suspendBlinking();
 						
+						this.clearScript();
 						
 						this.clearjax();
 						this.cleartoLeft();
@@ -1083,6 +1116,8 @@ function mathOnMouseOut(evt)
 						this.clearclickSide();
 					},
 					
+				clearScript		: function (){	this.scr			= null},
+				setScript		: function (scr){this.scr			= scr},
 				clearjax		: function (){	this.jax			= null},
 				setjax			: function (jax){this.jax			= jax},
 				clearinsertAt	: function (){	this.insertAt		= null},
@@ -1103,7 +1138,7 @@ function mathOnMouseOut(evt)
 						if (this.mRow) {delete(this.mRow.extraAttributes.focused)};
 						this.mRow = null;
 						if (this.mRowSpan) {this.mRowSpan.removeAttribute("focused")};
-						try {this.mRowSpan.removeChild(this.blinkerSpan);} catch(e){};
+						try {this.mRowSpan.removeChild(this.blinkerSpan);this.mRowSpan.removeChild(hiddenInput);} catch(e){};
 						this.mRowSpan = null;
 					},
 				setmRow			: function (mRow)
@@ -1112,7 +1147,7 @@ function mathOnMouseOut(evt)
 						if (mRow && mRow.spanID) 				
 						{
 							this.mRowSpan 		= document.getElementById("MathJax-Span-"+this.mRow.spanID);
-							if (this.mRowSpan) {this.mRowSpan.setAttribute("focused","true");}
+							if (this.mRowSpan) {document.activeElement.blur(); this.mRowSpan.setAttribute("focused","true"); this.mRowSpan.appendChild(this.hiddenInput);this.hiddenInput.focus();}
 							if (this.mRow.extraAttributes) {this.mRow.extraAttributes["focused"]=true;}
 							else {this.mRow.extraAttributes = {focused:true};}
 						}
@@ -1130,7 +1165,11 @@ function mathOnMouseOut(evt)
 								this.fieldSpan.removeEventListener("mousemove",ED.Event.Mousemove,true);
 							} catch(e) {};*/
 							try{this.fieldSpan.removeAttribute("selected");} catch(e){};
-							try{document.removeEventListener('keydown',ED.Event.Keydown,true);} catch(e){};
+							try
+							{
+								document.removeEventListener('keydown',ED.Event.Keydown,true);
+								document.removeEventListener('keypress',ED.Event.Keypress,true);
+							} catch(e){};
 						}
 						this.fieldSpan		= null;
 					},
@@ -1144,6 +1183,7 @@ function mathOnMouseOut(evt)
 							{
 								this.fieldSpan.setAttribute("selected","true");
 								document.addEventListener('keydown',ED.Event.Keydown,true);
+								document.addEventListener('keypress',ED.Event.Keypress,true);
 							}
 							if (this.inputField.extraAttributes) {this.inputField.extraAttributes["selected"]=true;}
 							else {this.inputField.extraAttributes = {selected:true};};
@@ -1253,6 +1293,69 @@ function mathOnMouseOut(evt)
 							if (this.blinkerSpan) {this.blinkerSpan.style.visibility = "hidden";}
 							this.blinkTimer = null;
 						}
+					},
+				insertElements : function ()
+					{
+						if (this.clickSpan)
+						{
+							var indx = -1,item,state,parent,def={};
+							if (this.toLeft)
+							{
+								indx = this.toLeft.getIndex()+1;
+								parent = this.toLeft.parent;
+							}
+							else if(this.toRight)
+							{
+								indx = this.toRight.getIndex();
+								parent = this.toRight.parent;
+							}
+							if (indx>=0)
+							{
+								for(var i = 0, m = arguments.length;i<m;i++)
+								{
+									item = arguments[i];
+								
+									if (item instanceof MML.mbase)
+									{
+										this.suspendBlinking();
+										parent.InsertAt(indx,item);
+// 										this.scr.MathJax.state = MathJax.ElementJax.STATE.UPDATE;
+// 										state = {
+// 												scripts: [this.scr],                  // filled in by prepareScripts
+// 												start: new Date().getTime(),  // timer for processing messages
+// 												i: 0, j: 0,                   // current script, current jax
+// 												//jax: {HTMLCSS : [this.scr]},                      // scripts grouped by output jax
+// 												jaxIDs: [this.jax.outputJax]                    // id's of jax used
+// 											};
+// 										state.jax = {};
+// 										state.jax[this.jax.outputJax] = [this.scr];
+// 										HUB.queue.Push(["processOutput",HUB,state]);
+										state = {
+											inputField 	: this.inputField,
+											mRow		: this.mRow,
+											toRight		: this.toRight
+										};
+										this.clearinputField();
+										this.clearclickSpan();
+										this.clearmRow();
+										this.cleartoLeft();
+										this.cleartoRight();
+										this.scr.MathJax.elementJax.Rerender();
+										def = item.focusInFromRight(item,def);
+										def.toRight = item.getNext();
+										def.inputField = state.inputField;
+										this.setData (def);
+										this.repositionBlinker();
+										if(EVENT.highlightingObj.highlightedNodes.length>0)
+										{
+											//TODO : replace the highlighted nodes;
+											this.highlightingObj.unHighlightNodes();
+										}
+									}
+								}
+							}
+						}
+						return null;
 					},
 				
 				blur : function ()
@@ -1443,7 +1546,8 @@ function mathOnMouseOut(evt)
 
 MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
   
-  var MML = MathJax.ElementJax.mml,
+  var ED  = MathJax.Extension.Editor,
+      MML = MathJax.ElementJax.mml,
       TEX = MathJax.InputJax.TeX,
       HUB = MathJax.Hub;
 
@@ -1521,7 +1625,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 		}
 	});
 
-	var oldFnCheckItem = STACKITEM.fn.prototype.checkItem; //Override so that no "function application" mentity item is not added while inside \inputfield
+	var oldFnCheckItem = STACKITEM.fn.prototype.checkItem; //Override so that "function application" entity item is not added while inside \inputfield
 	STACKITEM.fn.Augment({
 		checkItem: function (item) 
 		{
@@ -1552,12 +1656,12 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					//It is easier to augment TeX.Parse object and revert the changes at the end of processing the arguments of \inputfield
 					//than to implement the same via stack because mml elemtnts don't get to see the stack.env
 					var ParseAugmentData = ["Superscript","Subscript","Number","NamedFn"],ParseOld = {},
-						fieldList, fieldEntry;
+						fieldList, fieldObj;
 					
-					if (!this.fieldList) {this.fieldList = fieldList = []} else {fieldList = this.fieldList}
+					if (!ED.fieldList) {ED.fieldList = fieldList = []} else {fieldList = ED.fieldList}
 					
-					if (this.stack.env.inInputField){TEX.Error("Nested \\inputfield invocation.")}
-					else {fieldEntry = {processing : true}; fieldList.push(fieldEntry)}
+					if (this.stack.env.inInputField) {TEX.Error("Nested \\inputfield invocation.")};
+					//else {fieldEntry = {processing : true}; fieldList.push(fieldEntry)}
 					
 					
 					for(var i=0, m=ParseAugmentData.length;i<m;i++)//Save the old definitions of TeX.Parse object
@@ -1722,18 +1826,24 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					}
 */
 						
-					var parts = params.split(/,/), def = {EDisInputField : true, extraAttributes : {EDisInputField : 1}};
+					var parts = params.split(/,/), def = {EDisInputField : true, extraAttributes : {EDisInputField : 1}},
+						fieldName,fieldId;
 					
 					for (var i = 0, m = parts.length, part = parts[0]; i < m; i++, part=parts[i])
 					{
 						var keys = part.split(/=/);
 						switch(keys[0])
 						{
-							case 'id' : 
+							case 'id' :
+								fieldName = keys[1];
 								if (!def.extraAttributes) {def.extraAttributes = {};}
-								HUB.Insert(def.extraAttributes, {fieldId : keys[1]});
+								HUB.Insert(def.extraAttributes, {fieldId : fieldName});
+								break;
 						}
 					}
+					
+					
+					
 					
 					if (!def.extraAttributes) {def.extraAttributes = {};} def.extraAttributes.EDisInputField=1;
 /*					if((math.isa(MML.mbase))&&(math.data)&&(math.data.length>0))
@@ -1764,8 +1874,12 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					{
 						math = MML.mrow(math).With(def);
 					}
+					fieldId = fieldList.length;
 					
-					fieldList.splice(-1,1,def);
+					if(fieldName == undefined) fieldName = fieldId.toString();
+
+					fieldObj = {mml:math,id:fieldId,name:fieldName};
+					fieldList.push(fieldObj);
 					delete this.stack.env.inInputField;
 					this.Push(math);
 				}
@@ -2411,6 +2525,8 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				if ((this.extraAttributes)&&(this.extraAttributes.selected==true))
 				{//If the \inputfield is selected, it must listen to the keys
 					document.addEventListener('keydown',ED.Event.Keydown,true);
+				//	document.addEventListener('keypress',processKeyPress,false);
+					document.addEventListener('keypress',ED.Event.Keypress,true);
 				}
 			}
       });
