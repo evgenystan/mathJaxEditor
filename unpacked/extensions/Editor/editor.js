@@ -556,7 +556,39 @@ function mathOnMouseOut(evt)
 				{
 					var def = {}, code=evt.keyCode;//which button was pressed
 				
-					if (code==39) //Right arrow. TODO: process arrows with modifiers, like [shift] + [->] or [Ctrl] + [->]
+					if (code==8) //Backspace. TODO: Highlight complex objects before deletion, handle msup/msub nodes sequentially
+					{
+						if (this.focusObj.toLeft)
+						{
+							this.focusObj.removeLeft();
+						}
+// 						else if (!(/empty/.test(objParent.getAttribute('class')))) //Don't do anything if we are empty already
+// 						{
+// 							if (mathBlinkingObj.side==="left")//Delete previous sibling
+// 							{
+// 								if (targetSibling.previousElementSibling!=null)
+// 								{//there is something to delete
+// 									removeLast(targetSibling.previousElementSibling,false,false);
+// 								}
+// 								else
+// 								{//there is nothing to delete at the current level. Do nothing for now. TODO move to previous selectable and start deleting there
+// 									while ((objParent.previousElementSibling==null)&&(!(/selectable/.test(objParent.getAttribute('class')))))
+// 									{
+// 										objParent=objParent.parentNode;
+// 									}
+// 									if (objParent.previousElementSibling)
+// 									{
+// 										removeLast(objParent.previousElementSibling,false,false);
+// 									}
+// 								}
+// 							}
+// 							else//Delete the cursor holding object, check if we become empty
+// 							{
+// 								removeLast(targetSibling,true,false);
+// 							}
+// 						}
+					}
+					else if (code==39) //Right arrow. TODO: process arrows with modifiers, like [shift] + [->] or [Ctrl] + [->]
 					{
 						if (this.focusObj.toLeft)
 						{
@@ -1294,6 +1326,69 @@ function mathOnMouseOut(evt)
 							this.blinkTimer = null;
 						}
 					},
+				
+				removeLeft : function ()
+					{
+						if(EVENT.highlightingObj.highlightedNodes.length>0)
+						{
+							//TODO : remove the highlighted nodes;
+							//this.highlightingObj.unHighlightNodes();
+						}
+						else if(this.clickSpan)
+						{
+							var def = {},state;
+							
+							if(!this.toLeft&&this.toRight)
+							{
+								this.toLeft = this.toRight.getNext();
+							}
+							if(this.toLeft)
+							{
+								this.suspendBlinking();
+								
+								def = this.toLeft.DeleteFromRight(def);
+							//	def = parent.RemoveAt(indx);
+
+								state = {
+									inputField 	: this.inputField,
+									mRow		: this.mRow,
+								};
+								this.clearinputField();
+								this.clearclickSpan();
+								this.clearmRow();
+								this.cleartoLeft();
+								this.cleartoRight();
+								this.scr.MathJax.elementJax.Rerender();
+								//Since MathJax has scraped all old span elements, we have to look for a new clickSpan
+								if(def.clickSide == 0)
+								{
+									def.clickSpan = document.getElementById("MathJax-Span-"+def.mRow.spanID);
+								}
+								else if(def.toLeft)
+								{
+									def.clickSpan = document.getElementById("MathJax-Span-"+def.toLeft.spanID);
+									def.clickSide = 1;
+								}
+								else if(def.toRight)
+								{
+									def.clickSpan = document.getElementById("MathJax-Span-"+def.toRight.spanID);
+									def.clickSide = -1;
+								}
+								def.inputField = state.inputField;
+								if(!def.mRow) 
+								{
+									def.mRow = state.mRow;
+								}
+								this.setData (def);
+								this.repositionBlinker();
+							}
+							else
+							{
+								//TODO: highlight the mrow and remove it if delete is pressed again
+							}
+						}
+					},
+				
 				insertElements : function ()
 					{
 						if (this.clickSpan)
@@ -1309,6 +1404,11 @@ function mathOnMouseOut(evt)
 								indx = this.toRight.getIndex();
 								parent = this.toRight.parent;
 							}
+							else if(this.clickSide == 0)
+							{
+								indx = 0;
+								parent = this.mRow;
+							}
 							if (indx>=0)
 							{
 								for(var i = 0, m = arguments.length;i<m;i++)
@@ -1318,7 +1418,7 @@ function mathOnMouseOut(evt)
 									if (item instanceof MML.mbase)
 									{
 										this.suspendBlinking();
-										parent.InsertAt(indx,item);
+										def = parent.InsertAt(indx,item,def);
 // 										this.scr.MathJax.state = MathJax.ElementJax.STATE.UPDATE;
 // 										state = {
 // 												scripts: [this.scr],                  // filled in by prepareScripts
@@ -1333,7 +1433,6 @@ function mathOnMouseOut(evt)
 										state = {
 											inputField 	: this.inputField,
 											mRow		: this.mRow,
-											toRight		: this.toRight
 										};
 										this.clearinputField();
 										this.clearclickSpan();
@@ -1341,9 +1440,16 @@ function mathOnMouseOut(evt)
 										this.cleartoLeft();
 										this.cleartoRight();
 										this.scr.MathJax.elementJax.Rerender();
-										def = item.focusInFromRight(item,def);
+										def = def.toLeft.focusInFromRight(def.toLeft,def);
 										def.toRight = item.getNext();
-										def.inputField = state.inputField;
+										if(!def.inputField)
+										{
+											def.inputField = state.inputField;
+										}
+										if(!def.mRow)
+										{
+											def.mRow = stat.mRow;
+										}
 										this.setData (def);
 										this.repositionBlinker();
 										if(EVENT.highlightingObj.highlightedNodes.length>0)
@@ -1591,6 +1697,24 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 			else
 			{
 				return oldOpenCheckItem.apply(this,arguments);
+			}
+		}
+	});
+	
+	var oldLeftCheckItem = STACKITEM.left.prototype.checkItem;//Override so that \left and \right always wrapped their data into an mRow
+	STACKITEM.left.Augment({
+		checkItem: function (item) {
+			if(this.env.inInputField)
+			{
+				if (item.type === "right") {
+					var mml = MML.mfenced(MML.mrow.apply(MML,this.data));
+					return STACKITEM.mml(mml.With({open: this.delim, close: item.delim}));
+				}
+				return this.SUPER(arguments).checkItem.call(this,item);
+			}
+			else
+			{
+				return oldLeftCheckItem.apply(this,arguments);
 			}
 		}
 	});
@@ -2190,7 +2314,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 			},
 		
 		/********* Editing Code *******************************************************************/
-		InsertAt : function (at,math,def)
+		InsertAt : function (at,math,def) //Insert the content of the "math" object into the data list of the "this" mml object
 			{
 				if(math!=null)
 				{
@@ -2200,27 +2324,102 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 					math.parent = this;
 					math.setInherit(this.inheritFromMe ? this : this.inherit);
+					if(!def)
+					{
+						def = {};
+					}
+					def.toLeft = math;
+					if(this.emptyMRow)
+					{
+						this.data = [math];
+						this.emptyMRow = false;
+						delete this.extraAttributes.emptymrow;
+					}
+					else if(this.data&&this.data.length)
+					{
+						this.data.splice(at,0,math);
+					}
+					else
+					{
+						this.data = [math];
+					}
 				}
-				if(this.data&&this.data.length)
-				{
-					this.data.splice(at,0,math);
-				}
-				else
-				{
-					this.data = [math];
-				}
+				return def;
+			},
+			
+		DeleteFromRight : function(def)
+			{
+				return this.Vanish(def);
+			},
+			
+		DeleteFromLeft : function(def)
+			{
+				return this.Vanish(def);
 			},
 			
 		RemoveAt : function (at,def)
 			{
+				if(!def)
+				{
+					def = {};
+				}
 				if(this.data&&this.data.length)
 				{
-					this.data.splice(at,0,math);
+					this.data.splice(at,1);
+					if(at>0)
+					{
+						def.toLeft = this.data[at-1];
+						def = def.toLeft.focusInFromRight(def.toLeft,def);
+						if (!(def.toRight))
+						{
+							def.toRight = def.toLeft.getNext();
+						}
+					}
+					else if(this.data.length>0)
+					{
+						def.toRight = this.data[0];
+						def = def.toRight.focusInFromLeft(def.toRight,def);
+					}
+					else
+					{
+						def = this.LastOneRemoved(def);
+					}
+					return def;
 				}
 				else
 				{
-					return
+					//TODO: throw an error message. This is not supposed to happen anyway
+					return null
 				}
+			},
+		
+		LastOneRemoved : function (def)
+			{
+				if (!def)
+				{
+					def = {};
+				}
+				return this.Vanish(def);
+			},
+			
+		Vanish : function(def)
+			{
+				var indx = this.getIndex();
+				if (!def)
+				{
+					def = {};
+				}
+				
+				if(indx>=0)
+				{
+					return this.parent.RemoveAt(indx,def);
+				}
+				else return {};
+			},
+			
+		CheckSyntax : function()//This function should check if this mml object needs to adjust itself because of changed content around and inside it.
+			{
+				return;
 			}
 	});
 	
@@ -2237,7 +2436,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				if (arguments.length >0)
 				{this.Append.apply(this,arguments);}
 				else
-				{
+				{	// This mRow is empty. If nothing is done, it will not be rendered. The hack is to add a bogus mText element.
 					if((!this.EDisContainer))
 					{
 						this.SetData(0, MML.mtext(ED.config.nbsp));
@@ -2365,6 +2564,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					def.toLeft = null;
 					def.toRight = null;
 					def.clickSide = 0;
+					def.clickSpan = document.getElementById("MathJax-Span-"+this.spanID);
 					def.mRow = this;
 					
 					return def;
@@ -2384,6 +2584,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					def.toLeft = null;
 					def.toRight = null;
 					def.clickSide = 0;
+					def.clickSpan = document.getElementById("MathJax-Span-"+this.spanID);
 					def.mRow = this;
 					
 					return def;
@@ -2475,6 +2676,60 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 				}
 			},
+		/********* Editing Code **************************************************************************/
+
+		DeleteFromRight : function(def)
+			{
+				if(this.emptyMRow)
+				{
+					//TODO signal the parent that mRow is about to be deleted 
+				}
+				else if(this.data&&this.data.length>0)
+				{
+					return this.data[this.data.length -1].DeleteFromRight(def);
+				}
+				return this.Vanish(def);
+			},
+			
+		DeleteFromLeft : function(def)
+			{
+				if(this.emptyMRow)
+				{
+					//TODO signal the parent that mRow is about to be deleted 
+				}
+				else if(this.data&&this.data.length>0)
+				{
+					return this.data[0].DeleteFromLeft(def);
+				}
+				return this.Vanish(def);
+			},
+			
+		LastOneRemoved : function (def) //The regular mRow should just indicate that it becomes empty. To make it visible, the "empty mRow hack" is used.
+			{
+				if(!def)
+				{
+					def = {};
+				}
+				if(!this.EDisContainer)
+				{
+					this.SetData(0, MML.mtext(ED.config.nbsp));
+					this.emptyMRow = true;
+					if(this.extraAttributes)
+					{
+						this.extraAttributes.emptymrow = true;
+					}
+					else
+					{
+						this.extraAttributes = {emptymrow : true};
+					}
+					return this.focusInFromLeft(this,def);
+				}
+				else
+				{
+					return this.Vanish(def);
+				}
+			},
+			
 		
 		/********* HTML Generation Code *******************************************************************/
 
@@ -2855,7 +3110,27 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					def = this.data[this.den].focusRightToLeft(this,def);
 					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
 					return def;
+				},
+		/********* Editing Code **************************************************************************/
+
+			DeleteFromRight : function(def)
+				{
+					if(this.data&&this.data.length>0)
+					{
+						return this.data[this.den].DeleteFromRight(def);
+					}
+					return this.Vanish(def);
+				},
+			
+			DeleteFromLeft : function(def)
+				{
+					if(this.data&&this.data.length>0)
+					{
+						return this.data[this.num].DeleteFromLeft(def);
+					}
+					return this.Vanish(def);
 				}
+			
 		});
 	
 	MML.msubsup.Augment(
@@ -2947,6 +3222,29 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					def =prev.focusRightToLeft(this,def);
 					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
 					return def;
+				},
+		/********* Editing Code **************************************************************************/
+
+			DeleteFromRight : function(def)
+				{
+					var prev;
+					if(this.data[this.sup]) prev = this.data[this.sup];
+					else if(this.data[this.sub]) prev = this.data[this.sub];
+					else prev = this.data[this.base];
+					if(prev)
+					{
+						return prev.DeleteFromRight(def);
+					}
+					return this.Vanish(def);
+				},
+			
+			DeleteFromLeft : function(def)
+				{
+					if(this.data&&this.data[this.base])
+					{
+						return this.data[this.base].DeleteFromLeft(def);
+					}
+					return this.Vanish(def);
 				}
 		});
 	
@@ -2954,12 +3252,12 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 		{
 			locateMMLhelper : function (spanID, stack,side,def)
 				{
-					if ((spanID<this.data.open.spanID)||(spanID > this.data.close.spanID))
-					{
-						return null
-					}
-					else
-					{
+// 					if ((spanID<this.data.open.spanID)||(spanID > this.data.close.spanID))
+// 					{
+// 						return null
+// 					}
+// 					else
+// 					{
 						if (spanID == this.data.open.spanID)
 						{
 							if(side == -1)
@@ -3003,7 +3301,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 							}
 						}
 						else stack.push.apply(stack,this.data);
-					}
+// 					}
 				},
 				
 			focusOutToLeftFromChild : function (child,def)
