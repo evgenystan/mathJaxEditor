@@ -76,6 +76,7 @@
 		Click:		function (event) {return EVENT.Handler(event,"Click",this)},
 		DblClick:	function (event) {return EVENT.Handler(event,"DblClick",this)},
 		Menu:		function (event) {return EVENT.Handler(event,"ContextMenu",this)},
+		Beep:		function (){this.focusObj.flashMRow()},
 
 		Handler : function (event,type,math) {
 		  if (!event) {event = window.event};
@@ -501,6 +502,7 @@ function mathOnMouseOut(evt)
 			{
 				if ((evt.altKey)||(evt.ctrlKey)||(evt.metaKey))
 				{//Process clicks with modifiers
+					this.Beep();
 				}
 				else
 				{//Just a click. Mark an mrow as selected and show the blinker
@@ -541,10 +543,26 @@ function mathOnMouseOut(evt)
 					var def = {}, mml, code=evt.charCode, charIn = String.fromCharCode(code);//which button was pressed
 					if(!((evt.ctrlKey)||(evt.altKey)||(evt.metaKey)))//Let the browsers deal with keystrokes
 					{
-						if (/([A-Z]|[a-z])/.test(charIn)) //Letters will be typeset as math identifiers
+						if(code>=32)
 						{
-							mml = MML.mi(MML.chars(charIn));
-							this.focusObj.insertElements(mml);
+							if (/([A-Z]|[a-z])/.test(charIn)) //Letters will be typeset as math identifiers
+							{
+								mml = MML.mi(MML.chars(charIn));
+								this.focusObj.insertElements(mml);
+							}
+							else
+							{
+								this.Beep();
+							}
+						}
+						else if(code == 9)//Tab key
+						{
+						}
+						else if(code == 13)//Enter key
+						{
+						}
+						else if(code == 27)
+						{
 						}
 					}
 				}
@@ -558,35 +576,7 @@ function mathOnMouseOut(evt)
 				
 					if (code==8) //Backspace. TODO: Highlight complex objects before deletion, handle msup/msub nodes sequentially
 					{
-						if (this.focusObj.toLeft)
-						{
-							this.focusObj.removeLeft();
-						}
-// 						else if (!(/empty/.test(objParent.getAttribute('class')))) //Don't do anything if we are empty already
-// 						{
-// 							if (mathBlinkingObj.side==="left")//Delete previous sibling
-// 							{
-// 								if (targetSibling.previousElementSibling!=null)
-// 								{//there is something to delete
-// 									removeLast(targetSibling.previousElementSibling,false,false);
-// 								}
-// 								else
-// 								{//there is nothing to delete at the current level. Do nothing for now. TODO move to previous selectable and start deleting there
-// 									while ((objParent.previousElementSibling==null)&&(!(/selectable/.test(objParent.getAttribute('class')))))
-// 									{
-// 										objParent=objParent.parentNode;
-// 									}
-// 									if (objParent.previousElementSibling)
-// 									{
-// 										removeLast(objParent.previousElementSibling,false,false);
-// 									}
-// 								}
-// 							}
-// 							else//Delete the cursor holding object, check if we become empty
-// 							{
-// 								removeLast(targetSibling,true,false);
-// 							}
-// 						}
+						this.focusObj.removeLeft();
 					}
 					else if (code==39) //Right arrow. TODO: process arrows with modifiers, like [shift] + [->] or [Ctrl] + [->]
 					{
@@ -1147,6 +1137,24 @@ function mathOnMouseOut(evt)
 						this.clearclickSpan();
 						this.clearclickSide();
 					},
+				
+				flashMRow : function()
+					{
+						if (this.mRow&&this.mRowSpan)
+						{
+							this.mRowSpan.setAttribute("flashed","true");		//Flash the mRow
+							if(this.flashTimer) try {clearTimeout( this.flashTimer );} catch(e){};
+							this.flashTimer=setTimeout(this.clearFlash,40);	//Clear the flash
+						}
+					},
+					
+				clearFlash : function()
+					{
+						if (EVENT.focusObj.mRow&&EVENT.focusObj.mRowSpan)
+						{
+							EVENT.focusObj.mRowSpan.removeAttribute("flashed");				//Clear the flash attribute
+						}
+					},
 					
 				clearScript		: function (){	this.scr			= null},
 				setScript		: function (scr){this.scr			= scr},
@@ -1243,7 +1251,8 @@ function mathOnMouseOut(evt)
 						}
 					},
 				
-				blinkerSpan :null,
+				flashTimer	: null,
+				blinkerSpan : null,
 				
 				revealBlinker : function ()
 					{
@@ -1332,7 +1341,6 @@ function mathOnMouseOut(evt)
 						if(EVENT.highlightingObj.highlightedNodes.length>0)
 						{
 							//TODO : remove the highlighted nodes;
-							//this.highlightingObj.unHighlightNodes();
 						}
 						else if(this.clickSpan)
 						{
@@ -1340,7 +1348,7 @@ function mathOnMouseOut(evt)
 							
 							if(!this.toLeft&&this.toRight)
 							{
-								this.toLeft = this.toRight.getNext();
+								this.toLeft = this.toRight.getPrevious();
 							}
 							if(this.toLeft)
 							{
@@ -1349,6 +1357,26 @@ function mathOnMouseOut(evt)
 								def = this.toLeft.DeleteFromRight(def);
 							//	def = parent.RemoveAt(indx);
 
+							}
+							else if(this.toRight)
+							{
+								def = this.toRight.parent.removeLeftNeighbor(this.toRight,def);
+							}
+							else if(this.mRow.emptyMRow)
+							{
+								if(this.mRow.extraAttributes&&this.mRow.extraAttributes.EDisInputField,def)
+								{
+									EVENT.Beep();
+								}
+								else
+								{
+									def = this.mRow.parent.removePlaceHolder(this.mRow);
+								}
+							}
+							else EVENT.Beep();
+							
+							if(def.clickSide||(def.clickSide==0))
+							{
 								state = {
 									inputField 	: this.inputField,
 									mRow		: this.mRow,
@@ -1359,7 +1387,7 @@ function mathOnMouseOut(evt)
 								this.cleartoLeft();
 								this.cleartoRight();
 								this.scr.MathJax.elementJax.Rerender();
-								//Since MathJax has scraped all old span elements, we have to look for a new clickSpan
+								//Since MathJax has scraped all old span elements, we have to look for the new clickSpan
 								if(def.clickSide == 0)
 								{
 									def.clickSpan = document.getElementById("MathJax-Span-"+def.mRow.spanID);
@@ -1381,10 +1409,6 @@ function mathOnMouseOut(evt)
 								}
 								this.setData (def);
 								this.repositionBlinker();
-							}
-							else
-							{
-								//TODO: highlight the mrow and remove it if delete is pressed again
 							}
 						}
 					},
@@ -2318,30 +2342,66 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 			{
 				if(math!=null)
 				{
-					if(!(math instanceof MML.mbase))
+					if(math instanceof Array)
 					{
-						math = ((this.isToken)?(MML.chars(math)):(MML.mtext(math)));
-					}
-					math.parent = this;
-					math.setInherit(this.inheritFromMe ? this : this.inherit);
-					if(!def)
-					{
-						def = {};
-					}
-					def.toLeft = math;
-					if(this.emptyMRow)
-					{
-						this.data = [math];
-						this.emptyMRow = false;
-						delete this.extraAttributes.emptymrow;
-					}
-					else if(this.data&&this.data.length)
-					{
-						this.data.splice(at,0,math);
+						var item;
+						for(var i =0, m = math.length;i<m;i++)
+						{
+							item = math[i];
+							if(!(item instanceof MML.mbase))
+							{
+								math[i] = ((this.isToken)?(MML.chars(item)):(MML.mtext(item)));
+							}
+							item.parent = this;
+							item.setInherit(this.inheritFromMe ? this : this.inherit);
+						}
+						if(!def)
+						{
+							def = {};
+						}
+						def.toLeft = math[math.length -1];
+						if(this.emptyMRow)
+						{
+							this.data = math;
+							this.emptyMRow = false;
+							delete this.extraAttributes.emptymrow;
+						}
+						else if(this.data&&this.data.length)
+						{
+							this.data.splice.apply(this.data,[at,0].concat(math));
+						}
+						else
+						{
+							this.data = math;
+						}
 					}
 					else
 					{
-						this.data = [math];
+						if(!(math instanceof MML.mbase))
+						{
+							math = ((this.isToken)?(MML.chars(math)):(MML.mtext(math)));
+						}
+						math.parent = this;
+						math.setInherit(this.inheritFromMe ? this : this.inherit);
+						if(!def)
+						{
+							def = {};
+						}
+						def.toLeft = math;
+						if(this.emptyMRow)
+						{
+							this.data = [math];
+							this.emptyMRow = false;
+							delete this.extraAttributes.emptymrow;
+						}
+						else if(this.data&&this.data.length)
+						{
+							this.data.splice(at,0,math);
+						}
+						else
+						{
+							this.data = [math];
+						}
 					}
 				}
 				return def;
@@ -2678,6 +2738,35 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 			},
 		/********* Editing Code **************************************************************************/
 
+		removePlaceHolder : function (item,def)
+			{
+				return item.Vanish(def);
+			},
+			
+		removeLeftNeighbor : function (item,def)
+			{
+				if(this.EDisInputField&&this.data&&(this.data[0] == item))
+				{
+				}
+				else if(item&&item.parent == this)
+				{
+					var leftItem = item.getPrevious();
+					if(leftItem)
+					{
+						return leftItem.DeleteFromRight(def)
+					}
+					else
+					{
+						if(this.parent.removeLeftNeighbor)
+						{
+							return this.parent.removeLeftNeighbor(this,def);
+						}
+					}
+				}
+				ED.Event.Beep();
+				return {};
+			},
+			
 		DeleteFromRight : function(def)
 			{
 				if(this.emptyMRow)
