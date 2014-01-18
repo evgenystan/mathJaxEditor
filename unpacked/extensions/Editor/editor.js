@@ -549,6 +549,13 @@ function mathOnMouseOut(evt)
 							{
 								mml = MML.mi(MML.chars(charIn));
 								this.focusObj.insertElements(mml);
+								return this.False(evt);
+							}
+							else if (/\d|\./.test(charIn)) //Digits create rows of math numbers, dot is a digit
+							{
+								mml = MML.mn(MML.chars(charIn));
+								this.focusObj.insertElements(mml);
+								return this.False(evt);
 							}
 							else
 							{
@@ -557,12 +564,15 @@ function mathOnMouseOut(evt)
 						}
 						else if(code == 9)//Tab key
 						{
+							return this.False(evt);
 						}
 						else if(code == 13)//Enter key
 						{
+							return this.False(evt);
 						}
 						else if(code == 27)
 						{
+							return this.False(evt);
 						}
 					}
 				}
@@ -1364,13 +1374,13 @@ function mathOnMouseOut(evt)
 							}
 							else if(this.mRow.emptyMRow)
 							{
-								if(this.mRow.extraAttributes&&this.mRow.extraAttributes.EDisInputField,def)
+								if(this.mRow.extraAttributes&&this.mRow.extraAttributes.EDisInputField)
 								{
 									EVENT.Beep();
 								}
 								else
 								{
-									def = this.mRow.parent.removePlaceHolder(this.mRow);
+									def = this.mRow.parent.removePlaceHolder(this.mRow,def);
 								}
 							}
 							else EVENT.Beep();
@@ -1479,7 +1489,7 @@ function mathOnMouseOut(evt)
 										if(EVENT.highlightingObj.highlightedNodes.length>0)
 										{
 											//TODO : replace the highlighted nodes;
-											this.highlightingObj.unHighlightNodes();
+											ED.highlightingObj.unHighlightNodes();
 										}
 									}
 								}
@@ -1487,7 +1497,31 @@ function mathOnMouseOut(evt)
 						}
 						return null;
 					},
-				
+				insertTemplate : function (def)
+					{
+						var math;
+						 if (this.clickSpan)
+						 {
+						 	if(def.latex)
+						 	{//parse the latex template and insert the resulting mml at the focus point
+						 	}
+						 	else if(def.mml)
+						 	{//the mml is already created, insert it at the focus point
+						 	}
+						 	else if(def.template)
+						 	{
+						 		if(this.toLeft)
+						 		{
+									if(def.template.consumeLeft)
+									{
+										math = this.toLeft.parent.getLeftItem(this.toLeft);
+									}
+						 		}
+						 	}
+						 }
+						 return null;
+					},
+
 				blur : function ()
 					{
 						this.Init();
@@ -2344,13 +2378,25 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				{
 					if(math instanceof Array)
 					{
-						var item;
+						var item,tempdata = [];
 						for(var i =0, m = math.length;i<m;i++)
 						{
-							item = math[i];
+							item = math[0];
+							if(item.parent)
+							{
+								item.parent.RemoveAt(item.getIndex());
+							}
+							if ((i<(m-1))&&item == math[0])
+							{
+								math.splice(0,1);
+							}
 							if(!(item instanceof MML.mbase))
 							{
-								math[i] = ((this.isToken)?(MML.chars(item)):(MML.mtext(item)));
+								tempdata[i] = ((this.isToken)?(MML.chars(item)):(MML.mtext(item)));
+							}
+							else
+							{
+								tempdata[i] = item;
 							}
 							item.parent = this;
 							item.setInherit(this.inheritFromMe ? this : this.inherit);
@@ -2359,24 +2405,28 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						{
 							def = {};
 						}
-						def.toLeft = math[math.length -1];
+						def.toLeft = tempdata[tempdata.length -1];
 						if(this.emptyMRow)
 						{
-							this.data = math;
+							this.data = tempdata;
 							this.emptyMRow = false;
 							delete this.extraAttributes.emptymrow;
 						}
 						else if(this.data&&this.data.length)
 						{
-							this.data.splice.apply(this.data,[at,0].concat(math));
+							this.data.splice.apply(this.data,[at,0].concat(tempdata));
 						}
 						else
 						{
-							this.data = math;
+							this.data = tempdata;
 						}
 					}
 					else
 					{
+						if(math.parent)
+						{
+							math.parent.RemoveAt(math.getIndex());
+						}
 						if(!(math instanceof MML.mbase))
 						{
 							math = ((this.isToken)?(MML.chars(math)):(MML.mtext(math)));
@@ -2767,6 +2817,30 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				return {};
 			},
 			
+		removeRightNeighbor : function (item,def)
+			{
+				if(this.EDisInputField&&this.data&&(this.data[this.data.length-1] == item))
+				{
+				}
+				else if(item&&item.parent == this)
+				{
+					var rightItem = item.getNext();
+					if(rightItem)
+					{
+						return rightItem.DeleteFromRight(def)
+					}
+					else
+					{
+						if(this.parent.removeRightNeighbor)
+						{
+							return this.parent.removeRightNeighbor(this,def);
+						}
+					}
+				}
+				ED.Event.Beep();
+				return {};
+			},
+			
 		DeleteFromRight : function(def)
 			{
 				if(this.emptyMRow)
@@ -2996,6 +3070,72 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						}
 					}
 				},
+		/********* Editing Code **************************************************************************/
+
+			removePlaceHolder : function (item,def)
+				{
+					return item.Vanish(def);
+				},
+			
+			InsertAt : function(at,math,def)
+				{
+					if(math!=null)
+					{
+						if(math instanceof Array)
+						{
+							var item,tempdata = [],m = math.length;
+							for(var i =0;i<m;i++)
+							{
+								item = math[0];
+								if(item.parent)
+								{
+									item.parent.RemoveAt(item.getIndex());
+								}
+								if ((i<(m-1))&&item == math[0])
+								{
+									math.splice(0,1);
+								}
+								if(!(item instanceof MML.mbase))
+								{
+									this.InsertAt(at,(this.isToken)?(MML.chars(item)):(MML.mtext(item)),def);
+								}
+								else
+								{
+									this.InsertAt(at,item,def);
+								}
+							}
+							def = item.focusInFromRight(item,def);
+						}
+						else
+						{
+							if(math.parent)
+							{
+								math.parent.RemoveAt(math.getIndex());
+							}
+							if(!(math instanceof MML.mn))
+							{
+								this.split(at);
+								return this.parent.InsertAt(this.getIndex()+1,math,def);
+							}
+							else return this.InsertAt.SUPER.InsertAt.call(this,at,math,def);
+						}
+					}
+					return def;
+				},
+			
+			split : function(at)
+				{
+					if(this.data&&at>=0&&at<this.data.length-1)
+					{
+						var items=this.data.splice(at+1,this.data.length-at-1), mnrow = MML.numberrow();
+
+						mnrow.Append.apply(mnrow,items);
+						this.parent.InsertAt(this.getIndex()+1,mnrow);
+						return [this,mnrow];
+					}
+					return [null,null]
+				},
+
 			EDisContainer	: "mn",
 			numberString	: "",
 			extraAttributes	: {container : "mn"}
@@ -3126,6 +3266,20 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				for (var i = 0, m = arguments.length; i < m; i++)
 				  {this.SetData(this.data.length,arguments[i].With(this.defaults))}
 			},
+			
+			split : function(at)
+				{
+					if(this.data&&at>=0&&at<this.data.length-1)
+					{
+						var items=this.data.splice(at+1,this.data.length-at-1), frow = MML.functionrow();
+
+						frow.Append.apply(frow,items);
+						this.parent.InsertAt(this.getIndex()+1,frow);
+						return [this,frow];
+					}
+					return [null,null]
+				},
+
 			texClass: MML.TEXCLASS.ORD,
 			fName	: "",
 			defaults: 
@@ -3202,6 +3356,76 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				},
 		/********* Editing Code **************************************************************************/
 
+			removeLeftNeighbor : function (item,def)
+				{
+					if(item&&item.parent == this&&item == this.data[this.den])
+					{
+						var indx = this.getIndex(),m=0;
+						if(!this.data[this.num].emptyMRow)
+						{//Spill all content of the numerator into the parent mRow
+							m = this.data[this.num].data.length;
+							def = this.parent.InsertAt(indx,this.data[this.num].data,def)
+						}
+						else
+						{// Nothing gets spilled into the parent mRow
+							if (indx>0) 
+							{
+								def = {toLeft: this.parent.data[indx-1],mRow : this.parent};
+							}
+							else
+							{
+								def = {toLeft:null,mRow:this.parent};
+							}
+						}
+						if(!this.data[this.den].emptyMRow)
+						{
+							def.toRight = this.data[this.den].data[0];
+							this.parent.InsertAt(indx+m,this.data[this.den].data);
+						}
+						else
+						{
+							def.toRight = this.getNext();
+						}
+						this.Vanish();
+						if(def.toLeft)
+						{
+							def = def.toLeft.focusInFromRight(def.toLeft,def);
+						}
+						else if(def.toRight)
+						{
+							def = def.toRight.focusInFromLeft(def.toRight,def);
+						}
+						else
+						{
+							def.clickSide = 0;
+						}
+						return def;
+					}
+					else if(item&&item.parent == this&&item == this.data[this.num])
+					{
+						if(this.data[this.num].emptyMRow)
+						{// remove the numerator placeholder and spill the content of the denominator into the parent mRow
+							if(this.data[this.den].emptyMRow)
+							{// the whole fraction is empty, just remove it.
+								return this.Vanish(def);
+							}
+							else
+							{
+								var indx = this.getIndex();
+								def.toRight = this.data[this.den].data[0];
+								this.parent.InsertAt(indx+1,this.data[this.den].data);
+								return this.Vanish(def);
+							}
+						}
+						else
+						{
+							return this.parent.removeLeftNeighbor(this,def);
+						}
+					}
+					ED.Event.Beep();
+					return {};
+				},
+			
 			DeleteFromRight : function(def)
 				{
 					if(this.data&&this.data.length>0)
