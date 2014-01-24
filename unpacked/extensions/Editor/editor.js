@@ -1452,7 +1452,7 @@ function mathOnMouseOut(evt)
 									if (item instanceof MML.mbase)
 									{
 										this.suspendBlinking();
-										def = parent.InsertAt(indx,item,def);
+										def = parent.InsertAt(indx+i,item,def);
 // 										this.scr.MathJax.state = MathJax.ElementJax.STATE.UPDATE;
 // 										state = {
 // 												scripts: [this.scr],                  // filled in by prepareScripts
@@ -1497,26 +1497,44 @@ function mathOnMouseOut(evt)
 						}
 						return null;
 					},
-				insertTemplate : function (def)
+				insertTemplate : function (tmpl)
 					{
-						var math;
+						var mml,math,mrow,def={},indx,parent;
 						 if (this.clickSpan)
 						 {
-						 	if(def.latex)
+						 	if(tmpl.latex)
 						 	{//parse the latex template and insert the resulting mml at the focus point
 						 	}
-						 	else if(def.mml)
+						 	else if(tmpl.mml)
 						 	{//the mml is already created, insert it at the focus point
 						 	}
-						 	else if(def.template)
+						 	else if(tmpl.data)
 						 	{
+								mrow = MML.mrow();
 						 		if(this.toLeft)
 						 		{
-									if(def.template.consumeLeft)
+									if(tmpl.data.consumeLeft)
 									{
-										math = this.toLeft.parent.getLeftItem(this.toLeft);
+										math = this.toLeft.parent.produceLeftItem(this.toLeft);
+										mrow.InsertAt(0,math.mml);
+										indx = math.index;
+										parent = math.mml.parent;
+									}
+									else
+									{
+										indx = this.toLeft.getIndex()+1;
+										parent = this.toLeft.parent;
 									}
 						 		}
+						 		switch(tmpl.data.type)
+						 		{
+						 			case "mfrac":
+						 				var num = mrow, den = MML.mrow();
+						 				mml = MML.mfrac(num,den);
+						 				break;
+						 		}
+								this.suspendBlinking();
+								def = parent.InsertAt(indx,mml,def);
 						 	}
 						 }
 						 return null;
