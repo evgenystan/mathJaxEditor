@@ -557,6 +557,24 @@ function mathOnMouseOut(evt)
 								this.focusObj.insertElements(mml);
 								return this.False(evt);
 							}
+							else if (/[\+\-\*\/\^\_\=]/.test(charIn)) // [+] [-] [*] [/] [^] [_] [=] are creating operations
+							{
+								var template;
+					
+								switch(charIn)
+								{
+									case "/":
+										template = {
+											data : {
+														type : "mfrac",
+														consumeLeft : true,
+														focusAt : 1
+													}
+										};
+										this.focusObj.insertTemplate(template);
+										break;
+								}
+							}
 							else
 							{
 								this.Beep();
@@ -1380,7 +1398,10 @@ function mathOnMouseOut(evt)
 								}
 								else
 								{
-									def = this.mRow.parent.removePlaceHolder(this.mRow,def);
+									if(this.mRow.parent.removePlaceHolder)
+										def = this.mRow.parent.removePlaceHolder(this.mRow,def);
+									else
+										EVENT.Beep();
 								}
 							}
 							else EVENT.Beep();
@@ -1482,7 +1503,7 @@ function mathOnMouseOut(evt)
 										}
 										if(!def.mRow)
 										{
-											def.mRow = stat.mRow;
+											def.mRow = state.mRow;
 										}
 										this.setData (def);
 										this.repositionBlinker();
@@ -1499,7 +1520,7 @@ function mathOnMouseOut(evt)
 					},
 				insertTemplate : function (tmpl)
 					{
-						var mml,math,mrow,def={},indx,parent;
+						var mml,math,mrow,def={},indx,parent,focusPoint = 0,itemConsumed = false;
 						 if (this.clickSpan)
 						 {
 						 	if(tmpl.latex)
@@ -1510,31 +1531,109 @@ function mathOnMouseOut(evt)
 						 	}
 						 	else if(tmpl.data)
 						 	{
-								mrow = MML.mrow();
-						 		if(this.toLeft)
-						 		{
-									if(tmpl.data.consumeLeft)
+								if(EVENT.highlightingObj.highlightedNodes.length>0)
+								{
+									//TODO : replace the highlighted nodes;
+									ED.highlightingObj.unHighlightNodes();
+								}
+								else
+								{
+									mrow = MML.mrow();
+									if(!this.toLeft)
 									{
-										math = this.toLeft.parent.produceLeftItem(this.toLeft);
-										mrow.InsertAt(0,math.mml);
-										indx = math.index;
-										parent = math.mml.parent;
+										if(this.toRight)
+										{
+											this.toLeft = this.toRight.getPrevious();
+											if(!this.toLeft&& this.toRight.parent.EDisContainer)
+											{
+												this.toLeft = this.toRight.parent.getPrevious();
+											}
+										}
+									}
+									if(this.toLeft)
+									{
+										if(tmpl.data.consumeLeft)
+										{
+											math = this.toLeft.parent.produceLeftItem(this.toLeft);
+											if(math && math.mml)
+											{
+												mrow.InsertAt(0,math.mml);
+												indx = math.index;
+												parent = math.parent;
+												itemConsumed = true;
+											}
+											else //Should never happen, but just in case...
+											{
+												indx = this.toLeft.getIndex()+1;
+												parent = this.toLeft.parent;
+											}
+										}
+										else
+										{
+											indx = this.toLeft.getIndex()+1;
+											parent = this.toLeft.parent;
+										}
 									}
 									else
 									{
-										indx = this.toLeft.getIndex()+1;
-										parent = this.toLeft.parent;
+										indx = 0;
+										parent = this.mRow;
 									}
-						 		}
-						 		switch(tmpl.data.type)
-						 		{
-						 			case "mfrac":
-						 				var num = mrow, den = MML.mrow();
-						 				mml = MML.mfrac(num,den);
-						 				break;
-						 		}
-								this.suspendBlinking();
-								def = parent.InsertAt(indx,mml,def);
+									switch(tmpl.data.type)
+									{
+										case "mfrac":
+											var num = mrow, den = MML.mrow();
+											mml = MML.mfrac(num,den);
+											if(itemConsumed)
+											{
+												if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
+												else focusPoint = 1;
+											}
+											else
+											{
+												focusPoint = 0;
+											}
+											break;
+									}
+									if(mml)
+									{
+										this.suspendBlinking();
+										def = parent.InsertAt(indx,mml,def);
+										state = {
+											inputField 	: this.inputField,
+											mRow		: this.mRow,
+										};
+										this.clearinputField();
+										this.clearclickSpan();
+										this.clearmRow();
+										this.cleartoLeft();
+										this.cleartoRight();
+										this.scr.MathJax.elementJax.Rerender();
+										if(mml.data && focusPoint && mml.data.length>focusPoint)
+										{
+											def = mml.data[focusPoint].focusInFromRight(mml,def);
+										}
+										else if(mml.data && mml.data.length>0)
+										{
+											def = mml.data[0].focusInFromRight(mml,def);
+										}
+										else
+										{
+											def = def.toLeft.focusInFromRight(def.toLeft,def);
+										}
+									
+										if(!def.inputField)
+										{
+											def.inputField = state.inputField;
+										}
+										if(!def.mRow)
+										{
+											def.mRow = state.mRow;
+										}
+										this.setData (def);
+										this.repositionBlinker();
+									}
+								}
 						 	}
 						 }
 						 return null;
@@ -2169,6 +2268,16 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				}
 				return indexes;
 			},
+
+		produceLeftItem : function(item) //This function returns a child element that should be consumed by a template that is about to be put in. Since this may involve some substantial changes in the mml structure of the "this" object we return a structure.
+			{
+				if (item.parent == this)
+				{
+					return {mml:item,index:item.getIndex(),parent:this};
+				}
+				else
+					return item.parent.produceLeftItem(item);
+			},
 			
 		getIndex : function ()
 			{
@@ -2505,6 +2614,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 					else if(this.data.length>0)
 					{
+						def.toLeft = null;
 						def.toRight = this.data[0];
 						def = def.toRight.focusInFromLeft(def.toRight,def);
 					}
@@ -2864,6 +2974,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				if(this.emptyMRow)
 				{
 					//TODO signal the parent that mRow is about to be deleted 
+					return this.parent.removePlaceHolder(this,def);
 				}
 				else if(this.data&&this.data.length>0)
 				{
@@ -2877,6 +2988,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				if(this.emptyMRow)
 				{
 					//TODO signal the parent that mRow is about to be deleted 
+					return this.parent.removePlaceHolder(this,def);
 				}
 				else if(this.data&&this.data.length>0)
 				{
@@ -3132,8 +3244,18 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 							}
 							if(!(math instanceof MML.mn))
 							{
-								this.split(at);
-								return this.parent.InsertAt(this.getIndex()+1,math,def);
+								if(at>0)
+								{
+									if(at<this.data.length)
+									{
+										this.split(at-1);
+										return this.parent.InsertAt(this.getIndex()+1,math,def);
+									}
+									else
+										return this.parent.InsertAt(this.getIndex()+1,math,def);
+								}
+								else
+									return this.parent.InsertAt(this.getIndex(),math,def);
 							}
 							else return this.InsertAt.SUPER.InsertAt.call(this,at,math,def);
 						}
@@ -3151,7 +3273,28 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 						this.parent.InsertAt(this.getIndex()+1,mnrow);
 						return [this,mnrow];
 					}
+					else if(at == -1)
+					{
+						return [null,this];
+					}
+					else if(at == this.data.length -1)
+					{
+						return [this,null];
+					}
 					return [null,null]
+				},
+
+			produceLeftItem : function(item)
+				{
+					if(item.parent == this)
+					{
+						var i,m=this.data.length,containers,mml;
+						for (i=0;i<m;i++) {if (item == this.data[i]) break;}
+						containers = this.split(i);
+						return {mml:containers[0],index:this.getIndex(),parent:this.parent};
+					}
+					else 
+						return item.parent.produceLeftItem(item);
 				},
 
 			EDisContainer	: "mn",
@@ -3289,13 +3432,34 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				{
 					if(this.data&&at>=0&&at<this.data.length-1)
 					{
-						var items=this.data.splice(at+1,this.data.length-at-1), frow = MML.functionrow();
+						var items=this.data.splice(at+1,this.data.length-at-1), mnrow = MML.numberrow();
 
-						frow.Append.apply(frow,items);
-						this.parent.InsertAt(this.getIndex()+1,frow);
-						return [this,frow];
+						mnrow.Append.apply(mnrow,items);
+						this.parent.InsertAt(this.getIndex()+1,mnrow);
+						return [this,mnrow];
+					}
+					else if(at == -1)
+					{
+						return [null,this];
+					}
+					else if(at == this.data.length -1)
+					{
+						return [this,null];
 					}
 					return [null,null]
+				},
+
+			produceLeftItem : function(item)
+				{
+					if(item.parent == this)
+					{
+						var i,m=this.data.length,containers,mml;
+						for (i=0;i<m;i++) {if (item == this.data[i]) break;}
+						containers = this.split(i);
+						return {mml:containers[0],index:this.getIndex(),parent:this.parent};
+					}
+					else 
+						return item.parent.produceLeftItem(item);
 				},
 
 			texClass: MML.TEXCLASS.ORD,
@@ -3373,6 +3537,38 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					return def;
 				},
 		/********* Editing Code **************************************************************************/
+
+			removePlaceHolder : function(item,def)
+				{
+					if(item == this.data[this.den])
+					{
+						if(!this.data[this.num].emptyMRow)
+						{
+							var indx = this.getIndex();
+							
+							def = this.parent.InsertAt(indx,this.data[this.num].data,def);
+							
+							return this.Vanish(def);
+						}
+						else
+							return this.Vanish(def);
+					}
+					else if(item == this.data[this.num])
+					{
+						if(!this.data[this.den].emptyMRow)
+						{
+							var indx = this.getIndex();
+							
+							def = this.parent.InsertAt(indx+1,this.data[this.den].data,def);
+							
+							return this.Vanish(def);
+						}
+						else
+							return this.Vanish(def);
+					}
+					else
+						return def;
+				},
 
 			removeLeftNeighbor : function (item,def)
 				{
@@ -3794,7 +3990,100 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					def = this.data[0].focusRightToLeft(this,def);
 					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
 					return def;
+				},
+
+		/********* Editing Code **************************************************************************/
+
+			removePlaceHolder : function(item,def)
+				{
+					if(item == this.data[0])
+					{
+						return this.Vanish(def);
+					}
+					else if(item == this.data[1])
+					{
+						if(!this.data[0].emptyMRow)
+						{
+							var indx = this.getIndex(), mml = MML.msqrt(this.data[0]);
+							
+							def = this.parent.InsertAt(indx+1,mml,def);
+							
+							return this.Vanish(def);
+						}
+						else
+							return this.Vanish(def);
+					}
+					else
+						return def;
+				},
+
+			removeLeftNeighbor : function (item,def)
+				{
+					if(item&&item.parent == this&&item == this.data[0])
+					{
+						var indx = this.getIndex();
+						//Remove the root element form the parent mRow
+						if (indx>0) 
+						{
+							def = {toLeft: this.parent.data[indx-1],mRow : this.parent};
+						}
+						else
+						{
+							def = {toLeft:null,mRow:this.parent};
+						}
+						if(!this.data[0].emptyMRow)
+						{
+							def.toRight = this.data[0].data[0];
+							this.parent.InsertAt(indx+1,this.data[0].data);
+						}
+						else
+						{
+							def.toRight = this.getNext();
+						}
+						this.Vanish();
+						if(def.toLeft)
+						{
+							def = def.toLeft.focusInFromRight(def.toLeft,def);
+						}
+						else if(def.toRight)
+						{
+							def = def.toRight.focusInFromLeft(def.toRight,def);
+						}
+						else
+						{
+							def.clickSide = 0;
+						}
+						return def;
+					}
+					else if(item&&item.parent == this&&item == this.data[1])
+					{
+						if(this.data[1].emptyMRow)
+						{// convert the n-th root into a square root. The root number placeholder is empty, just remove it.
+							return this.removePlaceHolder(this.data[0],def);
+						}
+					}
+					ED.Event.Beep();
+					return {};
+				},
+			
+			DeleteFromRight : function(def)
+				{
+					if(this.data&&this.data.length>0)
+					{
+						return this.data[0].DeleteFromRight(def);
+					}
+					return this.Vanish(def);
+				},
+			
+			DeleteFromLeft : function(def)
+				{
+					if(this.data&&this.data.length>0)
+					{
+						return this.data[1].DeleteFromLeft(def);
+					}
+					return this.Vanish(def);
 				}
+			
 		});
 	
 	MML.msqrt.Augment(
@@ -3844,6 +4133,78 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					def = this.data[0].focusRightToLeft(this,def);
 					if (!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if (prev) def.mRow = prev.findParentMRow();}
 					return def;
+				},
+
+		/********* Editing Code **************************************************************************/
+
+			removePlaceHolder : function(item,def)
+				{
+					if(item == this.data[0])
+					{
+						return this.Vanish(def);
+					}
+					else
+						return def;
+				},
+
+			removeLeftNeighbor : function (item,def)
+				{
+					if(item&&item.parent == this&&item == this.data[0])
+					{
+						var indx = this.getIndex();
+						//Remove the root element form the parent mRow
+						if (indx>0) 
+						{
+							def = {toLeft: this.parent.data[indx-1],mRow : this.parent};
+						}
+						else
+						{
+							def = {toLeft:null,mRow:this.parent};
+						}
+						if(!this.data[0].emptyMRow)
+						{
+							def.toRight = this.data[this.den].data[0];
+							this.parent.InsertAt(indx+1,this.data[0].data);
+						}
+						else
+						{
+							def.toRight = this.getNext();
+						}
+						this.Vanish();
+						if(def.toLeft)
+						{
+							def = def.toLeft.focusInFromRight(def.toLeft,def);
+						}
+						else if(def.toRight)
+						{
+							def = def.toRight.focusInFromLeft(def.toRight,def);
+						}
+						else
+						{
+							def.clickSide = 0;
+						}
+						return def;
+					}
+					ED.Event.Beep();
+					return {};
+				},
+			
+			DeleteFromRight : function(def)
+				{
+					if(this.data&&this.data.length>0)
+					{
+						return this.data[0].DeleteFromRight(def);
+					}
+					return this.Vanish(def);
+				},
+			
+			DeleteFromLeft : function(def)
+				{
+					if(this.data&&this.data.length>0)
+					{
+						return this.data[0].DeleteFromLeft(def);
+					}
+					return this.Vanish(def);
 				}
 		});
 	});
