@@ -76,7 +76,7 @@
 							}
 						});
 					
-					ED.Event.Register.EventListener(null,"Mousemove",function (){MathJax.Message.Set("Oh my gosh it is working!!!!",null,500);});
+					ED.Event.Register.EventListener(null,"Focus",function (){MathJax.Message.Set("The field " + arguments[0].field.fieldName + " has received focus",null,500);});
 				},
 				
 			findFieldByName : function (name)
@@ -135,6 +135,14 @@
 				{
 					if (ED.Event.focusObj.jax)
 					{
+						if(ED.Event.focusObj.inputField.signal)
+						{
+							ED.Event.focusObj.jax.signal.Post(type,{event:event,jax:ED.Event.focusObj.jax,field:ED.Event.focusObj.inputField});
+						}
+						if(ED.Event.focusObj.jax.signal)
+						{
+							ED.Event.focusObj.jax.signal.Post(type,{event:event,jax:ED.Event.focusObj.jax,field:ED.Event.focusObj.inputField});
+						}
 						if(ED.Event.signal)
 						{
 							ED.Event.signal.Post(type,{event:event,jax:ED.Event.focusObj.jax,field:ED.Event.focusObj.inputField});
@@ -589,6 +597,18 @@ function mathOnMouseOut(evt)
 					if(this.focusObj.inputField)
 					{
 						this.focusObj.startBlinking(span, spanMRow, side);
+						if(this.focusObj.inputField.signal)
+						{
+							this.focusObj.inputField.signal.Post("Focus",{event:null,jax:this.focusObj.jax,field:this.focusObj.inputField});
+						}
+						if(this.focusObj.jax.signal)
+						{
+							this.focusObj.jax.signal.Post("Focus",{event:null,jax:this.focusObj.jax,field:this.focusObj.inputField});
+						}
+						if(this.signal)
+						{
+							this.signal.Post("Focus",{event:null,jax:this.focusObj.jax,field:this.focusObj.inputField});
+						}
 					}
 					
 					return this.False(evt);
@@ -770,7 +790,33 @@ function mathOnMouseOut(evt)
 						
 							if(fieldObj)
 							{
-								if(!fieldObj.signal) {filedObj.signal = MathJax.Callback.Signal(fieldObj.fieldName + fieldObj.fieldId)}
+								if(!fieldObj.signal) 
+								{
+									filedObj.signal = MathJax.Callback.Signal(fieldObj.fieldName + fieldObj.fieldId);
+									HUB.Insert(filedObj.signal,
+									{
+										Post: function (message,event,callback,remember) {
+										  callback = CALLBACK(callback);
+										  if (this.posting || this.pending) {
+											this.Push(["Post",this,message,event,callback,remember]);
+										  } else {
+											this.callback = callback; callback.reset();
+											if (remember) {this.posted.push([message,event])}
+											this.Suspend(); this.posting = true;
+											var result = this.listeners.Execute(message,event);
+											/*if (ISCALLBACK(result) && !result.called) {WAITFOR(result,this)}*/
+											this.Resume(); delete this.posting;
+											if (!this.pending) {this.call()}
+										  }
+										  return callback;
+										},
+										ExecuteHooks: function (msg,event) {
+										  var type = ((msg instanceof Array) ? msg[0] : msg);
+										  if (!this.hooks[type]) {return null}
+										  return this.hooks[type].Execute(event);
+										}
+									});
+								}
 								
 								if(fieldObj.jax)
 								{
@@ -791,7 +837,33 @@ function mathOnMouseOut(evt)
 								
 								if(jax !== null)
 								{
-									if(!jax.signal) {jax.signal = MathJax.Callback.Signal(jax.inputID)}
+									if(!jax.signal) 
+									{
+										jax.signal = MathJax.Callback.Signal(jax.inputID);
+										HUB.Insert(jax.signal,
+										{
+											Post: function (message,event,callback,remember) {
+											  callback = CALLBACK(callback);
+											  if (this.posting || this.pending) {
+												this.Push(["Post",this,message,event,callback,remember]);
+											  } else {
+												this.callback = callback; callback.reset();
+												if (remember) {this.posted.push([message,event])}
+												this.Suspend(); this.posting = true;
+												var result = this.listeners.Execute(message,event);
+												/*if (ISCALLBACK(result) && !result.called) {WAITFOR(result,this)}*/
+												this.Resume(); delete this.posting;
+												if (!this.pending) {this.call()}
+											  }
+											  return callback;
+											},
+											ExecuteHooks: function (msg,event) {
+											  var type = ((msg instanceof Array) ? msg[0] : msg);
+											  if (!this.hooks[type]) {return null}
+											  return this.hooks[type].Execute(event);
+											}
+										});
+									}
 									fieldObj.signal.MessageHook.apply(fieldObj.signal,[eventType, CALLBACK([fieldObj,callback]),priority]);
 								}
 							}
@@ -1766,6 +1838,18 @@ function mathOnMouseOut(evt)
 
 				blur : function ()
 					{
+						if(this.inputField&&this.inputField.signal)
+						{
+							this.inputField.signal.Post("Blur",{event:null,jax:this.jax,field:this.inputField});
+						}
+						if(this.jax&&this.jax.signal)
+						{
+							this.jax.signal.Post("Blur",{event:null,jax:this.jax,field:this.inputField});
+						}
+						if(ED.Event.signal)
+						{
+							ED.Event.signal.Post("Blur",{event:null,jax:this.jax,field:this.inputField});
+						}
 						this.Init();
 					},
 			
@@ -2266,9 +2350,6 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 						}
 					}
 					
-					
-					
-					
 					if (!def.extraAttributes) {def.extraAttributes = {};} def.extraAttributes.EDisInputField=1;
 /*					if((math.isa(MML.mbase))&&(math.data)&&(math.data.length>0))
 					{
@@ -2289,6 +2370,11 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 						math = MML.mrow(MML.mphantom("X")).With(def);
 					}*/
 					
+					fieldId = fieldList.length;
+					if(fieldName == undefined) fieldName = fieldId.toString();
+					def.fieldName = fieldName;
+					def.fieldId = fieldId;
+
 					if((math.isa(MML.mrow))&&(!math.EDisContainer))
 					{
 						delete (math.inferred);
@@ -2298,10 +2384,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					{
 						math = MML.mrow(math).With(def);
 					}
-					fieldId = fieldList.length;
 					
-					if(fieldName == undefined) fieldName = fieldId.toString();
-
 					fieldObj = {mml:math,id:fieldId,name:fieldName};
 					fieldList.push(fieldObj);
 					delete this.stack.env.inInputField;
