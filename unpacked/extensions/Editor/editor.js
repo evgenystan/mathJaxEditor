@@ -51,6 +51,56 @@
 					
 					ED.Event.MOUSEX = ED.config.MOUSEX;
 					ED.Event.MOUSEY = ED.config.MOUSEY;
+					
+					HUB.Insert(ED.Event.signal,
+						{
+							Post: function (message,event,callback,remember) {
+							  callback = CALLBACK(callback);
+							  if (this.posting || this.pending) {
+								this.Push(["Post",this,message,event,callback,remember]);
+							  } else {
+								this.callback = callback; callback.reset();
+								if (remember) {this.posted.push([message,event])}
+								this.Suspend(); this.posting = true;
+								var result = this.listeners.Execute(message,event);
+								/*if (ISCALLBACK(result) && !result.called) {WAITFOR(result,this)}*/
+								this.Resume(); delete this.posting;
+								if (!this.pending) {this.call()}
+							  }
+							  return callback;
+							},
+							ExecuteHooks: function (msg,event) {
+							  var type = ((msg instanceof Array) ? msg[0] : msg);
+							  if (!this.hooks[type]) {return null}
+							  return this.hooks[type].Execute(event);
+							}
+						});
+					
+					ED.Event.Register.EventListener(null,"Mousemove",function (){MathJax.Message.Set("Oh my gosh it is working!!!!",null,500);});
+				},
+				
+			findFieldByName : function (name)
+				{
+					if(this.fieldList && Array.isArray(this.fieldList))
+					{
+						for (var i =0, lst = this.fieldList,m= lst.length;i<m;i++)
+						{
+							if(name == lst[i].name)
+							{
+								return lst[i];
+							}
+						}
+					}
+					return null;
+				},
+			
+			findFieldById : function (id)
+				{
+					if(this.fieldList && Array.isArray(this.fieldList))
+					{
+						if(id>=0 && id < this.fieldList.length) {return this.fieldList[id]}
+					}
+					return null;
 				}
 		};
 
@@ -78,23 +128,34 @@
 		Menu:		function (event) {return EVENT.Handler(event,"ContextMenu",this)},
 		Beep:		function (){this.focusObj.flashMRow()},
 
-		Handler : function (event,type,math) {
-		  if (!event) {event = window.event};
-		  if (ED.Event["Process"+type]) {return ED.Event["Process"+type].call(ED.Event,event,math)};
-		},
+		Handler : function (event,type,math) 
+			{
+				if (!event) {event = window.event};
+				if (ED.Event["Process"+type]) 
+				{
+					if (ED.Event.focusObj.jax)
+					{
+						if(ED.Event.signal)
+						{
+							ED.Event.signal.Post(type,{event:event,jax:ED.Event.focusObj.jax,field:ED.Event.focusObj.inputField});
+						}
+					}
+					return ED.Event["Process"+type].call(ED.Event,event,math)
+				};
+			},
 		
 		False: function (event) 
-		{
-			if (!event) {event = window.event}
-			if (event) 
 			{
-				if (event.preventDefault) {event.preventDefault()}
-				if (event.stopPropagation) {event.stopPropagation()}
-				event.cancelBubble = true;
-				event.returnValue = false;
-			}
-			return false;
-		},
+				if (!event) {event = window.event}
+				if (event) 
+				{
+					if (event.preventDefault) {event.preventDefault()}
+					if (event.stopPropagation) {event.stopPropagation()}
+					event.cancelBubble = true;
+					event.returnValue = false;
+				}
+				return false;
+			},
 		
 		ProcessMousemove : function (evt, math)
 			{
@@ -110,7 +171,7 @@
 					side = 1;
 				}
 				
-				MathJax.Message.Set("Span: "+evt.target.id+"\nside: "+side,null,500);
+		//		MathJax.Message.Set("Span: "+evt.target.id+"\nside: "+side,null,500);
 				
 				if ((this.highlightingObj.possibleHighlight)&&(((this.highlightingObj.startScreenX - XPos)^2 + (this.highlightingObj.startScreenY - YPos)^2)>100))
 				{//The highlighting timer haven't fired yet, but the mouse is moved by at least 10 pixels distance
@@ -678,6 +739,70 @@ function mathOnMouseOut(evt)
 					}
 				}
 			},
+			
+		signal: MathJax.Callback.Signal("Editor"),
+		Register: 
+			{
+				/* Editor will issue the events in a manner similar to javascript events.
+				 * Listeners can be added with MathJax.Extension.Editor.Register.EventListener() with an interface similar to eventTarget.addEventListener()
+				 * element - anything that identifies MathJax element (such as spanID, HTML-element, inputfield ID). 
+				 *           If not provided, a listener to all event of that type is created (similar to capturing in javascript)
+				 * eventType - Either one of these;
+				 *             "Focus"
+				 *             "Blur"
+				 *             "Change"
+				 *             "Keypress"
+				 *             "Keydown"
+				 *             "Keyup" e.t.c.
+				 * callback - a function object that is called when the event is triggered
+				 * priority - an optional parameter that alters the order of calling to the callbacks.
+				 */
+				EventListener: function (element, eventType, callback,priority) 
+					{
+						var jax, fieldObj, cb;
+						
+						if(element)
+						{
+							if(typeof element === 'string')
+							{
+								fieldObj = ED.findFieldByName();
+							}
+						
+							if(fieldObj)
+							{
+								if(!fieldObj.signal) {filedObj.signal = MathJax.Callback.Signal(fieldObj.fieldName + fieldObj.fieldId)}
+								
+								if(fieldObj.jax)
+								{
+									jax = fieldObj.jax;
+								}
+								else
+								{
+									jax = HUB.getJaxFor("MathJax-Span-"+fieldObj.mml.spanID);
+									fieldObj.jax = jax;
+								}
+								
+								cb = CALLBACK([fieldObj,callback]);
+								fieldObj.signal.MessageHook.apply(fieldObj.signal,[eventType,cb,priority]);
+							}
+							else
+							{
+								jax = HUB.getJaxFor(element);
+								
+								if(jax !== null)
+								{
+									if(!jax.signal) {jax.signal = MathJax.Callback.Signal(jax.inputID)}
+									fieldObj.signal.MessageHook.apply(fieldObj.signal,[eventType, CALLBACK([fieldObj,callback]),priority]);
+								}
+							}
+						}
+						else
+						{
+							return ED.Event.signal.MessageHook.apply(ED.Event.signal,[eventType, CALLBACK([fieldObj,callback]),priority])
+						}
+					}
+			},
+
 		highlightingObj :
 			{// This object holds and proceses events that simulate highlighting and drag and drop activities.
 				jax					:null,
