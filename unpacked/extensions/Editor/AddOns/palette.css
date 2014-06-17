@@ -1,0 +1,60 @@
+.hidden {
+	display:none !important;
+	visibility:hidden !important;
+}
+
+.palette-frame
+{
+	font-family:Arial,sans-serif;
+	font-weight:bold;
+	color:black;
+	background-color:white;
+	margin:0px;
+	padding:10px 1em 10px;
+	border-top-left-radius:5px;
+	border-top-right-radius:5px;
+	border-bottom-left-radius:5px;
+	border-bottom-right-radius:5px;
+	border-style:ridge;
+	border-color:#ceffce;
+	border-width:8px;
+	box-shadow: 4px 4px 8px 1px #777777;
+	min-height:20em;
+	max-height:20em;
+	min-width:300px;
+	max-width:300px;
+	overflow:hidden;
+	position:fixed;
+	opacity:0.2;
+	top:80px;
+	right:-288px;
+}
+
+.palette-frame:hover
+{
+	border-top-left-radius:10px;
+	border-top-right-radius:10px;
+	border-bottom-left-radius:10px;
+	border-bottom-right-radius:10px;
+	box-shadow: 8px 8px 16px 1px #444444;
+	min-height:20em !important;
+	min-width:300px;
+	max-width:500px !important;
+	max-height:70% !important;
+	overflow:auto;
+	opacity:0.7;
+	right:10px;
+	z-index:1;
+}
+
+.palette-button
+{
+	display: inline-block;
+	text-align : center;
+	background-color:#f0f0f0;
+	min-height:2em !important;
+	min-width:2em;
+	max-width:2em !important;
+	max-height:2em !important;
+	box-shadow: inset 0px 0px 4px 1px #777777;
+}

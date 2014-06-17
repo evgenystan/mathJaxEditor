@@ -75,8 +75,6 @@
 							  return this.hooks[type].Execute(event);
 							}
 						});
-					
-					ED.Event.Register.EventListener(null,"Focus",function (){MathJax.Message.Set("The field " + arguments[0].field.fieldName + " has received focus",null,500);});
 				},
 				
 			findFieldByName : function (name)
