@@ -32,7 +32,7 @@
 					{
 						var item, span;
 						
-						PALETTE.paletteDiv = HTML.Element("div");
+						PALETTE.paletteDiv = HTML.Element("div",{isMathJax:true,EDkeepFocus:true});
 						
 						PALETTE.paletteDiv.setAttribute("class","palette-frame hidden");
 						
@@ -43,7 +43,7 @@
 							{
 								item = PALETTE.buttons[item];
 								if(item.latex) {item = item.latex}
-								span = HTML.Element("span", {},item);
+								span = HTML.Element("span", {isMathJax:true,EDkeepFocus:true},item);
 								
 								span.setAttribute("class","palette-button");
 								PALETTE.paletteDiv.appendChild(span);

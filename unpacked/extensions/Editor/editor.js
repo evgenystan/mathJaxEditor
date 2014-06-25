@@ -652,6 +652,16 @@ function mathOnMouseOut(evt)
 										};
 										this.focusObj.insertTemplate(template);
 										break;
+									case "^":
+										template = {
+											data : {
+														type : "msup",
+														consumeLeft : true,
+														focusAt : 2
+													}
+										};
+										this.focusObj.insertTemplate(template);
+										break;
 								}
 							}
 							else
@@ -746,7 +756,7 @@ function mathOnMouseOut(evt)
 						while (iterator)
 						{
 							if(iterator.className == "math") {iterator = null;}
-							else if((iterator.EDisInputField)&&(iterator.EDisInputField==true)) {return;}//We clicked on an object that can receive focus, let the event propagate further
+							else if(((iterator.EDisInputField)&&(iterator.EDisInputField==true))||(iterator.EDkeepFocus)) {return;}//We clicked on an object that can receive focus, let the event propagate further
 							else {iterator = iterator.parentNode;}
 						}
 						if(ED.Event.focusObj.mRow)// no \inputfield parent have been found, blur the focus, if necessary
@@ -1789,6 +1799,19 @@ function mathOnMouseOut(evt)
 												focusPoint = 0;
 											}
 											break;
+										case "msup":
+											var base = mrow, sup = MML.mrow();
+											mml = MML.msubsup(base,null,sup);
+											if(itemConsumed)
+											{
+												if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
+												else focusPoint = 1;
+											}
+											else
+											{
+												focusPoint = 0;
+											}
+											break;
 									}
 									if(mml)
 									{
@@ -2083,7 +2106,7 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 		}
 	});
 	
-	var oldLeftCheckItem = STACKITEM.left.prototype.checkItem;//Override so that \left and \right always wrapped their data into an mRow
+	var oldLeftCheckItem = STACKITEM.left.prototype.checkItem;//Override so that \left and \right always wrapp their data into an mRow
 	STACKITEM.left.Augment({
 		checkItem: function (item) {
 			if(this.env.inInputField)
@@ -2168,7 +2191,6 @@ MathJax.Hub.Register.StartupHook("TeX Jax Ready",function () {
 					
 					if (this.stack.env.inInputField) {TEX.Error("Nested \\inputfield invocation.")};
 					//else {fieldEntry = {processing : true}; fieldList.push(fieldEntry)}
-					
 					
 					for(var i=0, m=ParseAugmentData.length;i<m;i++)//Save the old definitions of TeX.Parse object
 					{
@@ -2861,7 +2883,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				else return {};
 			},
 			
-		CheckSyntax : function()//This function should check if this mml object needs to adjust itself because of changed content around and inside it.
+		checkSyntax : function()//This function should check if this mml object needs to adjust itself because of changed content around and inside it.
 			{
 				return;
 			}
@@ -3983,6 +4005,49 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 	
 	MML.mfenced.Augment(
 		{
+			setTeXclass: function (prev) 
+				{
+					this.getPrevClass(prev);
+					var values = this.getValues("open","close","separators"),
+						attr = this.getValues("EDProperties"),
+						def = {stretchy:true, texClass:MML.TEXCLASS.OPEN};
+					values.open = values.open.replace(/[ \t\n\r]/g,"");
+					values.close = values.close.replace(/[ \t\n\r]/g,"");
+					values.separators = values.separators.replace(/[ \t\n\r]/g,"");
+					// create a fake node for the open item
+					if (values.open !== "") {
+						if(attr&&(attr.open)&&(attr.open.mathcolor)) {def.mathcolor = attr.open.mathcolor}
+						this.SetData("open",MML.mo(values.open).With(def));
+						prev = this.data.open.setTeXclass(prev);
+					}
+					// get the separators
+					if (values.separators !== "") {
+						while (values.separators.length < this.data.length)
+						{values.separators += values.separators.charAt(values.separators.length-1)}
+					}
+					// handle the first item, if any
+					if (this.data[0]) {prev = this.data[0].setTeXclass(prev)}
+					// add fake nodes for separators and handle the following item
+					for (var i = 1, m = this.data.length; i < m; i++) {
+						if (this.data[i]) {
+							if (values.separators !== "") {
+							this.SetData("sep"+i,MML.mo(values.separators.charAt(i-1)));
+							prev = this.data["sep"+i].setTeXclass(prev);
+							}
+							prev = this.data[i].setTeXclass(prev);
+						}
+					}
+					// create fake node for the close item
+					if (values.close !== "") {
+						def = {stretchy:true, texClass:MML.TEXCLASS.CLOSE};
+						if(attr&&(attr.close)&&(attr.close.mathcolor)) {def.mathcolor = attr.close.mathcolor}
+						this.SetData("close",MML.mo(values.close).With(def));
+						prev = this.data.close.setTeXclass(prev);
+					}
+					// get the data from the open item
+					this.updateTeXclass(this.data.open);
+					return prev;
+				},
 			locateMMLhelper : function (spanID, stack,side,def)
 				{
 // 					if ((spanID<this.data.open.spanID)||(spanID > this.data.close.spanID))
