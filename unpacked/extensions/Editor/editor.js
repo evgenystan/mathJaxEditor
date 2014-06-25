@@ -1049,22 +1049,25 @@ function mathOnMouseOut(evt)
 					},
 				unHighlightNodes : function () 
 					{
-						var item;
+						var item, m=this.highlightedNodes.length;
 						
-						for (i=0,m=this.highlightedNodes.length;i<m;i++)
+						if(m>0)
 						{
-							item = this.highlightedNodes[i];
-							
-							if (item.EDisHighlighted)
+							for (i=0;i<m;i++)
 							{
-								delete item.EDisHighlighted;
-								delete item.extraAttributes.ishighlighted;
-								item.DOMSpan.removeAttribute("ishighlighted");
-								item.DOMSpan.removeAttribute("hlinprogress");
-								delete item.DOMSpan;
+								item = this.highlightedNodes[i];
+							
+								if (item.EDisHighlighted)
+								{
+									delete item.EDisHighlighted;
+									delete item.extraAttributes.ishighlighted;
+									item.DOMSpan.removeAttribute("ishighlighted");
+									item.DOMSpan.removeAttribute("hlinprogress");
+									delete item.DOMSpan;
+								}
 							}
+							this.highlightedNodes = [];
 						}
-						this.highlightedNodes = [];
 					},
 				
 				relabelHighlightedNodes : function ()
@@ -1800,16 +1803,59 @@ function mathOnMouseOut(evt)
 											}
 											break;
 										case "msup":
-											var base = mrow, sup = MML.mrow();
-											mml = MML.msubsup(base,null,sup);
-											if(itemConsumed)
+											var base, sup = MML.mrow();
+											if(mrow.data&&(mrow.data.length==1)&&(mrow.data[0].type == "msubsup"))
 											{
-												if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
-												else focusPoint = 1;
+												base = mrow.data[0];
+												if(base.data[base.sup])
+												{//double superscript
+													base = MML.mfenced(mrow).With(
+																					{EDProperties : 
+																						{
+																							ghostElement:true,
+																							open:{mathcolor:"gray"},
+																							close:{mathcolor:"gray"}
+																						}
+																					});
+													mml = MML.msubsup(base,null,sup);
+													if(itemConsumed)
+													{
+														if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
+														else focusPoint = 1;
+													}
+													else
+													{
+														focusPoint = 0;
+													}
+												}
+												else
+												{//existing subscript element
+													base.InsertAt(base.sup,sup);
+													mml = base;
+													if(itemConsumed)
+													{
+														if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
+														else focusPoint = 1;
+													}
+													else
+													{
+														focusPoint = 0;
+													}
+												}
 											}
 											else
 											{
-												focusPoint = 0;
+												base = mrow;
+												mml = MML.msubsup(base,null,sup);
+												if(itemConsumed)
+												{
+													if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
+													else focusPoint = 1;
+												}
+												else
+												{
+													focusPoint = 0;
+												}
 											}
 											break;
 									}
@@ -1859,6 +1905,7 @@ function mathOnMouseOut(evt)
 
 				blur : function ()
 					{
+						ED.Event.highlightingObj.unHighlightNodes();
 						if(this.inputField&&this.inputField.signal)
 						{
 							this.inputField.signal.Post("Blur",{event:null,jax:this.jax,field:this.inputField});
@@ -2623,28 +2670,42 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 		
 		focusInFromLeft : function (item, def)
 			{
-				var add = {
-								toRight	: this,
-								mRow : this.findParentMRow(),
-								insertAt : this.getIndex(),
-								clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
-								clickSide : -1
-							};
-				for (var id in add) {if (add.hasOwnProperty(id)) {def[id] = add[id]}}
-				return def
+				if(this.EDProperties&&this.EDProperties.ghostElement)
+				{
+					return this.focusLeftToRight(item,def);
+				}
+				else
+				{
+					var add = {
+									toRight	: this,
+									mRow : this.findParentMRow(),
+									insertAt : this.getIndex(),
+									clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
+									clickSide : -1
+								};
+					for (var id in add) {if (add.hasOwnProperty(id)) {def[id] = add[id]}}
+					return def
+				}
 			},
 		
 		focusInFromRight : function (item, def)
 			{
-				var add = {
-								toLeft	: this,
-								mRow : this.findParentMRow(),
-								insertAt : this.getIndex()+1,
-								clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
-								clickSide : 1
-							};
-				for (var id in add) {if (add.hasOwnProperty(id)) {def[id] = add[id]}}
-				return def
+				if(this.EDProperties&&this.EDProperties.ghostElement)
+				{
+					return this.focusRightToLeft(item,def);
+				}
+				else
+				{
+					var add = {
+									toLeft	: this,
+									mRow : this.findParentMRow(),
+									insertAt : this.getIndex()+1,
+									clickSpan : document.getElementById("MathJax-Span-"+this.spanID),
+									clickSide : 1
+								};
+					for (var id in add) {if (add.hasOwnProperty(id)) {def[id] = add[id]}}
+					return def
+				}
 			},
 		
 		focusOutToRight : function (item, def)
@@ -4016,7 +4077,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					values.separators = values.separators.replace(/[ \t\n\r]/g,"");
 					// create a fake node for the open item
 					if (values.open !== "") {
-						if(attr&&(attr.open)&&(attr.open.mathcolor)) {def.mathcolor = attr.open.mathcolor}
+						if(attr&&(attr.EDProperties)&&(attr.EDProperties.open)) {HUB.Insert(def,attr.EDProperties.open)}
 						this.SetData("open",MML.mo(values.open).With(def));
 						prev = this.data.open.setTeXclass(prev);
 					}
@@ -4040,7 +4101,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					// create fake node for the close item
 					if (values.close !== "") {
 						def = {stretchy:true, texClass:MML.TEXCLASS.CLOSE};
-						if(attr&&(attr.close)&&(attr.close.mathcolor)) {def.mathcolor = attr.close.mathcolor}
+						if(attr&&(attr.EDProperties)&&(attr.EDProperties.close)) {HUB.Insert(def,attr.EDProperties.close)}
 						this.SetData("close",MML.mo(values.close).With(def));
 						prev = this.data.close.setTeXclass(prev);
 					}
@@ -4050,56 +4111,49 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				},
 			locateMMLhelper : function (spanID, stack,side,def)
 				{
-// 					if ((spanID<this.data.open.spanID)||(spanID > this.data.close.spanID))
-// 					{
-// 						return null
-// 					}
-// 					else
-// 					{
-						if (spanID == this.data.open.spanID)
+					if (spanID == this.data.open.spanID)
+					{
+						if(side == -1)
 						{
-							if(side == -1)
+							if (def) 
 							{
-								if (def) 
-								{
-									def.clickSide = -1;
-									def.toLeft = this.getPrevious();
-								}
-								return this;
+								def.clickSide = -1;
+								def.toLeft = this.getPrevious();
 							}
-							else
-							{
-								if (def) 
-								{
-									def.clickSide = -1;
-									def.toLeft = null;
-								}
-								return this.data[0];
-							}
+							return this;
 						}
-						else if (spanID == this.data.close.spanID)
+						else
 						{
-							if(side == 1)
+							if (def) 
 							{
-								if (def) 
-								{
-									def.clickSide = 1;
-									def.toRight = this.getNext();
-								}
-								return this;
+								def.clickSide = -1;
+								def.toLeft = null;
 							}
-							else
-							{
-								if (def) 
-								{
-									def.clickSide = 1;
-									def.toRight = null;
-								}
-								return this.data[this.data.length -1];
-							}
+							return this.data[0];
 						}
-						else stack.push.apply(stack,this.data);
-// 					}
+					}
+					else if (spanID == this.data.close.spanID)
+					{
+						if(side == 1)
+						{
+							if (def) 
+							{
+								def.clickSide = 1;
+								def.toRight = this.getNext();
+							}
+							return this;
+						}
+						else
+						{
+							if (def) 
+							{
+								def.clickSide = 1;
+								def.toRight = null;
+							}
+							return this.data[this.data.length -1];
+						}
+					}
+					else stack.push.apply(stack,this.data);
 				},
 				
 			focusOutToLeftFromChild : function (child,def)
@@ -4112,8 +4166,18 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 					else
 					{
-						def = this.focusInFromLeft(this,def);
-						if(!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if(prev) def.mRow = prev.findParentMRow();}
+						if(this.EDProperties&&(this.EDProperties.ghostElement))
+						{
+							if(this.parent)
+							{
+								return this.parent.focusOutToLeftFromChild(this,def);
+							}
+						}
+						else
+						{
+							def = this.focusInFromLeft(this,def);
+							if(!def.mRow) {prev = (def.toLeft)?def.toLeft:def.toRight; if(prev) def.mRow = prev.findParentMRow();}
+						}
 					}
 					
 					return def
@@ -4129,8 +4193,18 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 					else
 					{
-						def = this.focusInFromRight(this,def);
-						if(!def.mRow) {next = (def.toLeft)?def.toLeft:def.toRight;if(next) def.mRow = next.findParentMRow()};
+						if(this.EDProperties&&(this.EDProperties.ghostElement))
+						{
+							if(this.parent)
+							{
+								return this.parent.focusOutToRightFromChild(this,def);
+							}
+						}
+						else
+						{
+							def = this.focusInFromRight(this,def);
+							if(!def.mRow) {next = (def.toLeft)?def.toLeft:def.toRight;if(next) def.mRow = next.findParentMRow()};
+						}
 					}
 					
 					return def
