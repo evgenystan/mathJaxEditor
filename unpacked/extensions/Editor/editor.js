@@ -619,7 +619,7 @@ function mathOnMouseOut(evt)
 				
 				if (this.focusObj.inputField)//Should be always true as we add and remove listeners when changing the focus.
 				{
-					var def = {}, mml, code=evt.charCode, charIn = String.fromCharCode(code);//which button was pressed
+					var res=false,def = {}, mml, code=evt.charCode, charIn = String.fromCharCode(code);//which button was pressed
 					if(!((evt.ctrlKey)||(evt.altKey)||(evt.metaKey)))//Let the browsers deal with keystrokes
 					{
 						if(code>=32)
@@ -650,7 +650,7 @@ function mathOnMouseOut(evt)
 														focusAt : 1
 													}
 										};
-										this.focusObj.insertTemplate(template);
+										res = this.focusObj.insertTemplate(template);
 										break;
 									case "^":
 										template = {
@@ -660,9 +660,25 @@ function mathOnMouseOut(evt)
 														focusAt : 2
 													}
 										};
-										this.focusObj.insertTemplate(template);
+										res = this.focusObj.insertTemplate(template);
+										break;
+									case "_":
+										template = {
+											data : {
+														type : "msub",
+														consumeLeft : true,
+														focusAt : 1
+													}
+										};
+										res = this.focusObj.insertTemplate(template);
 										break;
 								}
+								if(!res)
+								{
+									this.Beep();
+									return;
+								}
+								return this.False(evt);
 							}
 							else
 							{
@@ -1728,7 +1744,7 @@ function mathOnMouseOut(evt)
 					},
 				insertTemplate : function (tmpl)
 					{
-						var mml,math,mrow,def={},indx,parent,focusPoint = 0,itemConsumed = false;
+						var mml={},math,mrow,def={},indx,parent,focusPoint = 0,itemConsumed = false;
 						 if (this.clickSpan)
 						 {
 						 	if(tmpl.latex)
@@ -1746,7 +1762,6 @@ function mathOnMouseOut(evt)
 								}
 								else
 								{
-									mrow = MML.mrow();
 									if(!this.toLeft)
 									{
 										if(this.toRight)
@@ -1758,111 +1773,18 @@ function mathOnMouseOut(evt)
 											}
 										}
 									}
-									if(this.toLeft)
+									mml.toLeft = this.toLeft;
+									mml.mRow = this.mRow;
+									if(tmpl.data.consumeLeft) {mml.consumeLeft = tmpl.data.consumeLeft}
+									if(tmpl.data.focusAt) {mml.focusAt = tmpl.data.focusAt}
+									if(this[tmpl.data.type]) {mml = this[tmpl.data.type](mml)}
+									if(mml&&mml.mml)
 									{
-										if(tmpl.data.consumeLeft)
-										{
-											math = this.toLeft.parent.produceLeftItem(this.toLeft);
-											if(math && math.mml)
-											{
-												mrow.InsertAt(0,math.mml);
-												indx = math.index;
-												parent = math.parent;
-												itemConsumed = true;
-											}
-											else //Should never happen, but just in case...
-											{
-												indx = this.toLeft.getIndex()+1;
-												parent = this.toLeft.parent;
-											}
-										}
-										else
-										{
-											indx = this.toLeft.getIndex()+1;
-											parent = this.toLeft.parent;
-										}
-									}
-									else
-									{
-										indx = 0;
-										parent = this.mRow;
-									}
-									switch(tmpl.data.type)
-									{
-										case "mfrac":
-											var num = mrow, den = MML.mrow();
-											mml = MML.mfrac(num,den);
-											if(itemConsumed)
-											{
-												if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
-												else focusPoint = 1;
-											}
-											else
-											{
-												focusPoint = 0;
-											}
-											break;
-										case "msup":
-											var base, sup = MML.mrow();
-											if(mrow.data&&(mrow.data.length==1)&&(mrow.data[0].type == "msubsup"))
-											{
-												base = mrow.data[0];
-												if(base.data[base.sup])
-												{//double superscript
-													base = MML.mfenced(mrow).With(
-																					{EDProperties : 
-																						{
-																							ghostElement:true,
-																							open:{mathcolor:"gray"},
-																							close:{mathcolor:"gray"}
-																						}
-																					});
-													mml = MML.msubsup(base,null,sup);
-													if(itemConsumed)
-													{
-														if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
-														else focusPoint = 1;
-													}
-													else
-													{
-														focusPoint = 0;
-													}
-												}
-												else
-												{//existing subscript element
-													base.InsertAt(base.sup,sup);
-													mml = base;
-													if(itemConsumed)
-													{
-														if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
-														else focusPoint = 1;
-													}
-													else
-													{
-														focusPoint = 0;
-													}
-												}
-											}
-											else
-											{
-												base = mrow;
-												mml = MML.msubsup(base,null,sup);
-												if(itemConsumed)
-												{
-													if(tmpl.data.focusAt) focusPoint = tmpl.data.focusAt;
-													else focusPoint = 1;
-												}
-												else
-												{
-													focusPoint = 0;
-												}
-											}
-											break;
-									}
-									if(mml)
-									{
+										focusPoint = mml.focusPoint;
+										indx = mml.indx;
 										this.suspendBlinking();
-										def = parent.InsertAt(indx,mml,def);
+										if(mml.doNotInsert) def.toLeft=this.toLeft;
+										else def = mml.parent.InsertAt(indx,mml.mml,def);
 										state = {
 											inputField 	: this.inputField,
 											mRow		: this.mRow,
@@ -1873,6 +1795,7 @@ function mathOnMouseOut(evt)
 										this.cleartoLeft();
 										this.cleartoRight();
 										this.scr.MathJax.elementJax.Rerender();
+										mml = mml.mml;
 										if(mml.data && focusPoint && mml.data.length>focusPoint)
 										{
 											def = mml.data[focusPoint].focusInFromRight(mml,def);
@@ -1896,11 +1819,12 @@ function mathOnMouseOut(evt)
 										}
 										this.setData (def);
 										this.repositionBlinker();
+										return true;
 									}
 								}
 						 	}
 						 }
-						 return null;
+						 return false;
 					},
 
 				blur : function ()
@@ -2046,6 +1970,188 @@ function mathOnMouseOut(evt)
 							}
 						}
 			
+						return def;
+					},
+				mfrac : function(def)
+					{
+						var math, num, mrow = MML.mrow(), itemConsumed, den = MML.mrow();
+						if(def.toLeft)
+						{
+							if(def.consumeLeft)
+							{
+								math = def.toLeft.parent.produceLeftItem(def.toLeft);
+								if(math && math.mml)
+								{
+									mrow.InsertAt(0,math.mml);
+									def.indx = math.index;
+									def.parent = math.parent;
+									itemConsumed = true;
+								}
+								else //Should never happen, but just in case...
+								{
+									def.indx = def.toLeft.getIndex()+1;
+									def.parent = def.toLeft.parent;
+								}
+							}
+							else
+							{
+								def.indx = def.toLeft.getIndex()+1;
+								def.parent = def.toLeft.parent;
+							}
+						}
+						else
+						{
+							def.indx = 0;
+							def.parent = def.mRow;
+						}
+						num = mrow;
+						def.mml = MML.mfrac(num,den);
+						if(itemConsumed)
+						{
+							if(def.focusAt) def.focusPoint = def.focusAt;
+							else def.focusPoint = 1;
+						}
+						else
+						{
+							def.focusPoint = 0;
+						}
+						return def;
+					},
+				msup : function(def)
+					{
+						var math, base, mrow = MML.mrow(), itemConsumed, sup = MML.mrow();
+						if(def.toLeft)
+						{
+							if(def.consumeLeft)
+							{
+								math = def.toLeft.parent.produceLeftItem(def.toLeft);
+								if(math && math.mml)
+								{
+									def.indx = math.index;
+									def.parent = math.parent;
+									itemConsumed = true;
+								}
+								else //Should never happen, but just in case...
+								{
+									def.indx = def.toLeft.getIndex()+1;
+									def.parent = def.toLeft.parent;
+								}
+							}
+							else
+							{
+								def.indx = def.toLeft.getIndex()+1;
+								def.parent = def.toLeft.parent;
+							}
+						}
+						else
+						{
+							def.indx = 0;
+							def.parent = def.mRow;
+						}
+						if(itemConsumed)
+						{
+							if((math.mml.type == "msubsup"))
+							{
+								base = math.mml;
+								if(base.data[base.sup])
+								{//double superscript, wrap it in ghost parentheses
+									mrow.InsertAt(0,base);
+									base = MML.mfenced(mrow).With(
+																	{EDProperties : 
+																		{
+																			ghostElement:true,
+																			open:{mathcolor:"gray"},
+																			close:{mathcolor:"gray"}
+																		}
+																	});
+									def.mml = MML.msubsup(base,null,sup);
+									if(def.focusAt>=0) def.focusPoint = def.focusAt;
+									else def.focusPoint = 2;
+								}
+								else
+								{//existing subscript element
+									base.SetData(base.sup,sup);
+									def.mml = base;
+									def.focusPoint = base.sup;
+									def.doNotInsert = true;
+								}
+							}
+							else
+							{
+								mrow.InsertAt(0,math.mml);
+								def.mml = MML.msubsup(mrow,null,sup);
+								if(def.focusAt>=0) def.focusPoint = def.focusAt;
+								else def.focusPoint = 2;
+							}
+						}
+						else
+						{
+							def.mml = MML.msubsup(mrow,null,sup);
+							def.focusPoint = 0;
+						}
+						return def;
+					},
+				msub : function(def)
+					{
+						var math, base, mrow = MML.mrow(), itemConsumed, sub = MML.mrow();
+						if(def.toLeft)
+						{
+							if(def.consumeLeft)
+							{
+								math = def.toLeft.parent.produceLeftItem(def.toLeft);
+								if(math && math.mml)
+								{
+									def.indx = math.index;
+									def.parent = math.parent;
+									itemConsumed = true;
+								}
+								else //Should never happen, but just in case...
+								{
+									def.indx = def.toLeft.getIndex()+1;
+									def.parent = def.toLeft.parent;
+								}
+							}
+							else
+							{
+								def.indx = def.toLeft.getIndex()+1;
+								def.parent = def.toLeft.parent;
+							}
+						}
+						else
+						{
+							def.indx = 0;
+							def.parent = def.mRow;
+						}
+						if(itemConsumed)
+						{
+							if((math.mml.type == "msubsup"))
+							{
+								base = math.mml;
+								if(base.data[base.sub])
+								{//double subcript, refuse to do anything
+									return null;
+								}
+								else
+								{//existing subscript element
+									base.SetData(base.sub,sub);
+									def.mml = base;
+									def.focusPoint = base.sub;
+									def.doNotInsert = true;
+								}
+							}
+							else
+							{
+								mrow.InsertAt(0,math.mml);
+								def.mml = MML.msubsup(mrow,sub,null);
+								if(def.focusAt>=0) def.focusPoint = def.focusAt;
+								else def.focusPoint = 1;
+							}
+						}
+						else
+						{
+							def.mml = MML.msubsup(mrow,sub,null);
+							def.focusPoint = 0;
+						}
 						return def;
 					}
 			},
