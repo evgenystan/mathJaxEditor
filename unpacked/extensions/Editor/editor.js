@@ -4052,7 +4052,6 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 					return this.Vanish(def);
 				}
-			
 		});
 	
 	MML.msubsup.Augment(
@@ -4147,6 +4146,71 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 				},
 		/********* Editing Code **************************************************************************/
 
+			removePlaceHolder : function(item,def)
+				{
+					if(item == this.data[this.sup])
+					{
+						if(this.data[this.sub])
+						{
+							def = this.data[this.sub].focusInFromRight(this,def);
+							this.data[this.sup]=null;
+							return def;
+						}
+						else 
+						{
+							var mrow;
+							if(this.data[0].EDProperties&&this.data[0].EDProperties.ghostElement) mrow = this.data[0].data[0];
+							else mrow = this.data[0];
+							def = this.parent.InsertAt(this.getIndex(),mrow.data,def);
+							return this.Vanish(def);
+						}
+					}
+					else if(item == this.data[this.sub])
+					{
+						if(this.data[this.sup])
+						{
+							def = this.data[0].focusInFromRight(this,def);
+							this.data[this.sub]=null;
+							return def;
+						}
+						else 
+						{
+							var mrow;
+							if(this.data[0].EDProperties&&this.data[0].EDProperties.ghostElement) mrow = this.data[0].data[0];
+							else mrow = this.data[0];
+							def = this.parent.InsertAt(this.getIndex(),mrow.data,def);
+							return this.Vanish(def);
+						}
+					}
+					else if(item == this.data[0])
+					{
+						return this.Vanish(def);
+					}
+					else
+						return def;
+				},
+
+			removeLeftNeighbor : function (item,def)
+				{
+					if(item&&item.parent == this&&item == this.data[this.sup])
+					{
+						if(this.data[this.sub])
+						{
+							return this.data[this.sub].DeleteFromRight(def);
+						}
+						else
+						{
+							return this.data[0].DeleteFromRight(def);
+						}
+					}
+					else if(item&&item.parent == this&&item == this.data[this.sub])
+					{
+						return this.data[0].DeleteFromRight(def);
+					}
+					ED.Event.Beep();
+					return {};
+				},
+			
 			DeleteFromRight : function(def)
 				{
 					var prev;
@@ -4375,6 +4439,66 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 							return def
 						}
 					}
+				},
+		/********* Editing Code **************************************************************************/
+
+			removePlaceHolder : function(item,def)
+				{
+					if(item == this.data[0])
+					{
+						return this.Vanish(def);
+					}
+					else
+						return def;
+				},
+
+			removeLeftNeighbor : function (item,def)
+				{
+					if(this.EDProperties&&this.EDProperties.ghostElement)
+					{
+						ED.Event.Beep();
+						return {};
+					}
+					else
+					{
+						if(this.data)
+						{
+							if(this.data.lenght==1)
+							{
+								if(this.data[0].type=="mrow")
+								{
+									def = this.parent.InsertAt(this.getIndex(),this.data[0].data,def);
+								}
+								else
+								{
+									def = this.parent.InsertAt(this.getIndex(),this.data[0],def);
+								}
+								return this.Vanish(def);
+							}
+						}
+					}
+					ED.Event.Beep();
+					return {};
+				},
+			
+			DeleteFromRight : function(def)
+				{
+					var prev;
+					if(this.data&&this.data.length) prev = this.data[this.data.length-1];
+					if(prev)
+					{
+						return prev.DeleteFromRight(def);
+					}
+					return def;
+				},
+			
+			DeleteFromLeft : function(def)
+				{
+					if(this.data&&this.data[0])
+					{
+						return this.data[0].DeleteFromLeft(def);
+					}
+					return def;
 				}
 		});
 	
@@ -4453,7 +4577,7 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 					}
 					else if(item == this.data[1])
 					{
-						if(!this.data[0].emptyMRow)
+						if(this.data[0])
 						{
 							var indx = this.getIndex(), mml = MML.msqrt(this.data[0]);
 							
