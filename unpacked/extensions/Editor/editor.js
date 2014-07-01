@@ -44,6 +44,7 @@
 			Config : function ()
 				{
 					document.addEventListener('click',ED.Event.documentClick,true);
+					document.addEventListener('mouseup',ED.Event.documentMouseUp,false);
 					
 					ED.Event.focusObj.blinkerSpan = HTML.Element("span", {style : {display:"inline-block", visibility : "hidden", width: "1px", position:"absolute", backgroundColor : "black",overflow: "hidden"}});
 					
@@ -111,6 +112,8 @@
 		
 		MOUSEX : ED.config.MOUSEX,
 		MOUSEY : ED.config.MOUSEY,
+		NODROP : 0,
+		DROPOK : 1,
 
 		Keydown: 	function (event) {return EVENT.Handler(event,"Keydown",this)},
 		Keyup:		function (event) {return EVENT.Handler(event,"Keyup",this)},
@@ -173,7 +176,7 @@
 					XPos = evt[this.MOUSEX],
 					YPos = evt[this.MOUSEY],
 					jax = HUB.getJaxFor(span), 
-					scr = document.getElementById(jax.inputID),
+					scr = (jax)?document.getElementById(jax.inputID):null,
 					spanRect = span.getBoundingClientRect();
 				
 				span = this.checkSpan(span);
@@ -182,7 +185,7 @@
 					side = 1;
 				}
 				
-				def = this.focusObj.findMMLelements(span,spanMRow,jax,side);
+				def = jax?this.focusObj.findMMLelements(span,spanMRow,jax,side):{};
 				def.jax = jax;
 				def.Script = scr;
 				mml = (def.toLeft)?(def.toLeft):def.toRight;
@@ -211,35 +214,26 @@
 				}
 				else if(this.highlightingObj.draggingOn)
 				{
+					var drop;
 					if(def.mRow)
 					{
 						if(span.getAttribute("ishighlighted")=="true"||(mml&&mml.EDcheckHighlighted()))
 						{
-							MathJax.Message.Set("Span: "+evt.target.id+"\nside: "+side+"\nno-drop",null,500);
+							drop = false;
+							this.highlightingObj.checkDropMRow(spanMRow,this.NODROP)
 						}
 						else
 						{
-							MathJax.Message.Set("Span: "+evt.target.id+"\nside: "+side+"\ndrop-ok",null,500);
-						}
-					}
-/*					if(editableobj)
-					{
-						if(isHighlighted(obj))
-						{
-							clearClassName(mathRoot,'draggignon');
-							attachClassName(mathRoot,'draggignnodrop');
-						}
-						else
-						{
-							clearClassName(mathRoot,'draggignnodrop');
-							attachClassName(mathRoot,'draggignon');
+							drop = true;
+							this.highlightingObj.checkDropMRow(spanMRow,this.DROPOK)
 						}
 					}
 					else
 					{
-						clearClassName(mathRoot,'draggignon');
-						attachClassName(mathRoot,'draggignnodrop');
-					}*/
+						drop = false;
+						this.highlightingObj.checkDropMRow(spanMRow,this.NODROP)
+					}
+					MathJax.Message.Set("Span: "+evt.target.id+", side: "+side+((drop==0)?", no-drop":", drop-ok"),null,500);
 				}
 				//Mouse is just moving
 				if(math)
@@ -280,8 +274,28 @@
 		
 		ProcessMouseup : function (evt, math)
 			{
-				var def = {};
+				var span = evt.target,
+					mml,
+					spanMRow = (evt.currentTarget)?(evt.currentTarget):(math), 
+					side = -1,
+					def,
+					XPos = evt[this.MOUSEX],
+					YPos = evt[this.MOUSEY],
+					jax = HUB.getJaxFor(span), 
+					scr = (jax)?document.getElementById(jax.inputID):null,
+					spanRect = span.getBoundingClientRect();
 				
+				span = this.checkSpan(span);
+				if (((XPos - spanRect.left)/spanRect.width)>1/2)
+				{
+					side = 1;
+				}
+				
+				def = jax?this.focusObj.findMMLelements(span,spanMRow,jax,side):{};
+				def.jax = jax;
+				def.Script = scr;
+				mml = (def.toLeft)?(def.toLeft):def.toRight;
+
 				if (this.highlightingObj.possibleHighlight)
 				{
 					def.timer = null;
@@ -290,11 +304,7 @@
 				}
 				else if (this.highlightingObj.inProgress) 
 				{
-					def.timer = null;
 					def.inProgress = false;
-					def.possibleHighlight = false;
-					def.draggingOn = false;
-					def.possibleDrag = false;
 					if (this.highlightingObj.direction ==0)
 					{
 						this.focusObj.resumeBlinking();
@@ -351,6 +361,60 @@
 				}
 				else if (this.highlightingObj.draggingOn) 
 				{
+					def.draggingOn = false;
+					def.possibleDrag = false;
+					if(def.mRow)
+					{
+						if(side==1)
+						{//drop the highlighted nodes to the right of the hovered at math
+							if(def.mRow.isEmptyMRow())
+							{
+								this.highlightingObj.removeHighlightedNodes();
+								def.at=0;
+								def.parent = def.mRow;
+								def = this.highlightingObj.pasteStackedNodes(def);
+								this.focusObj.positionBlinker(def);
+							}
+							else if(def.toLeft)
+							{
+								this.highlightingObj.removeHighlightedNodes();
+								def.at = def.toLeft.getIndex()+1;
+								def.parent = def.toLeft.parent;
+								def = this.highlightingObj.pasteStackedNodes(def);
+								this.focusObj.positionBlinker(def);
+							}
+						}
+						else if(side==-1)
+						{//drop the highlighted nodes to the left of the hovered at math
+							if(def.mRow.isEmptyMRow())
+							{
+								this.highlightingObj.removeHighlightedNodes();
+								def.at=0;
+								def.parent = def.mRow;
+								def = this.highlightingObj.pasteStackedNodes(def);
+								this.focusObj.positionBlinker(def);
+							}
+							else if(def.toRight)
+							{
+								this.highlightingObj.removeHighlightedNodes();
+								def.at = def.toRight.getIndex();
+								def.parent = def.toRight.parent;
+								def = this.highlightingObj.pasteStackedNodes(def);
+								this.focusObj.positionBlinker(def);
+							}
+						}
+						else if(side==0)
+						{//possibly dropped into empty mrow
+							if(def.mRow.isEmptyMRow())
+							{
+								this.highlightingObj.removeHighlightedNodes();
+								def.at=0;
+								def.parent = def.mRow;
+								def = this.highlightingObj.pasteStackedNodes(def);
+								this.focusObj.positionBlinker(def);
+							}
+						}
+					}
 /*					var obj=evt.target,emptyContainerCheck=false;
 		
 					var hnl=highlightedNodes.length;
@@ -567,52 +631,23 @@
 										timer		: setTimeout(CALLBACK(["setinProgress",this.highlightingObj,true]),ED.config.highlightingDelay) // Initiate highlighting after a delay
 									});
 							}
-/*							if (evt.shiftKey)
-							{//check if shift key was pressed
-								if(mathHighlightingObj.start!=null)
-								{
-									mathHighlightingObj.end=obj;
-									mathHighlightingObj.endside=side;
-						
-									highlightNodes("hlinprogress");
-						
-									try {clearTimeout( mathHighlightingTimer );} catch(e){};
-									try {clearTimeout( mathDraggingTimer );} catch(e){};
-						
-									if (highlightedNodes.length>0) mathHighlightingInProgress=true;
-								}
-								if (evt. preventDefault) evt.preventDefault();
-							}
-							else if(isHighlighted(obj))
-							{// else, check if we have mousedown on the highlighted area, this begin the drag-n-drop
-								mathDraggingObj.startScreenX=XPos;
-								mathDraggingObj.startScreenY=YPos;
-								mathDraggingObj.source=mathBlinkingObj.selectedMrow;
-
-								try {clearTimeout( mathHighlightingTimer );} catch(e){};
-								try {clearTimeout( mathDraggingTimer );} catch(e){};
-					
-								mathDraggingTimer=setTimeout(function (){mathDraggingOn=true;attachClassName(mathRoot,'draggignon');},200);
-
-								if (evt. preventDefault) evt.preventDefault();
-							}
-							else
-							{// else, check if we clicked on something not highlighted, possibly start new highlighting process
-								mathHighlightingObj.start=obj;
-								mathHighlightingObj.startside=side;
-					
-								try {clearTimeout( mathHighlightingTimer );} catch(e){};
-								try {clearTimeout( mathDraggingTimer );} catch(e){};
-					
-								mathHighlightingTimer=setTimeout(function (){unHighlightNodes();mathHighlightingInProgress=true;},200);
-					
-								if (evt. preventDefault) evt.preventDefault();
-							}*/
 						}
 						return this.False(evt);
 					}
 				}
 			},
+			
+/*		ProcessMouseout : function (evt, math)
+			{
+				if(this.highlightingObj.draggingOn)
+				{
+					var span = evt.target,
+						spanMRow = (evt.currentTarget)?(evt.currentTarget):math;
+						
+					spanMRow.removeAttribute('draggingnodrop');
+					spanMRow.removeAttribute('draggingon');
+				}
+			},*/
 /*
 function mathOnMouseOut(evt)
 {
@@ -712,6 +747,15 @@ function mathOnMouseOut(evt)
 					
 								switch(charIn)
 								{
+									case "*":
+										charIn=String.fromCharCode(0xB7);
+									case "+":
+									case "-":
+									case "=":
+										// Simple mo-element for these
+										mml = MML.mo(MML.chars(charIn));
+										res = this.focusObj.insertElements(mml);
+										break;
 									case "/":
 										template = {
 											data : {
@@ -852,6 +896,89 @@ function mathOnMouseOut(evt)
 						}
 					}
 				}
+			},
+		
+		documentMouseUp : function (evt)
+			{
+				var span = evt.target,
+					spanMRow = (evt.currentTarget)?(evt.currentTarget):this;
+					def = {};
+				
+				if (ED.Event.highlightingObj.possibleHighlight)
+				{
+					def.timer = null;
+					def.possibleHighlight = false;
+					this.highlightingObj.unHighlightNodes();
+				}
+				else if (ED.Event.highlightingObj.inProgress) 
+				{
+					def.inProgress = false;
+					if (ED.Event.highlightingObj.direction ==0)
+					{
+						ED.Event.focusObj.resumeBlinking();
+					}
+					else
+					{
+						var bdef, mathItem;
+						
+						if ((ED.Event.highlightingObj.highlightedNodes)&&(ED.Event.highlightingObj.highlightedNodes.length>0))
+						{
+							bdef = {
+								mRow : ED.Event.highlightingObj.highlightedNodes[0].findParentMRow(),
+								clickSide : ED.Event.highlightingObj.direction,
+							};
+							if (ED.Event.highlightingObj.direction>0)
+							{
+								mathItem = ED.Event.highlightingObj.highlightedNodes[ED.Event.highlightingObj.highlightedNodes.length-1]
+								bdef.toLeft = mathItem;
+								bdef.clickSpan = document.getElementById("MathJax-Span-"+mathItem.spanID)
+								bdef.toRight = mathItem.getNext();
+							}
+							else
+							{
+								mathItem = ED.Event.highlightingObj.highlightedNodes[0];
+								bdef.toRight = mathItem;
+								bdef.clickSpan = document.getElementById("MathJax-Span-"+mathItem.spanID)
+								bdef.toLeft = mathItem.getPrevious();
+							}
+						}
+						else
+						{
+							mathItem = ED.Event.highlightingObj.topleft;
+							bdef = {
+								mRow : mathItem.findParentMRow(),
+								clickSide : ED.Event.highlightingObj.endside,
+								clickSpan : ED.Event.highlightingObj.end
+							};
+							if (ED.Event.highlightingObj.endside>0)
+							{
+								bdef.toLeft = mathItem;
+								bdef.toRight = mathItem.getNext();
+							}
+							else
+							{
+								mathitem = ED.Event.highlightingObj.highlightedNodes[0];
+								bdef.toRight = mathItem;
+								bdef.toLeft = mathItem.getPrevious();
+							}
+						}
+						
+						ED.Event.focusObj.setData(bdef);
+						ED.Event.focusObj.startBlinking();
+					}
+				}
+				else if (ED.Event.highlightingObj.draggingOn) 
+				{
+					def.draggingOn = false;
+					def.possibleDrag = false;
+				}
+				else
+				{
+					ED.Event.highlightingObj.unHighlightNodes();
+				}
+				ED.Event.highlightingObj.setData(def);
+				
+				return ED.Event.False(evt);
 			},
 			
 		signal: MathJax.Callback.Signal("Editor"),
@@ -1037,6 +1164,7 @@ function mathOnMouseOut(evt)
 							this.setpossibleHighlight(false);
 							this.setpossibleDrag(false);
 							this.setdraggingTimer(null);
+							document.body.setAttribute('draggingnodrop','true');
 						}
 						else
 						{
@@ -1045,6 +1173,8 @@ function mathOnMouseOut(evt)
 							this.setpossibleHighlight(false);
 							this.setpossibleDrag(false);
 							this.setdraggingTimer(null);
+							this.checkDropMRow(null,null);
+							document.body.removeAttribute('draggingnodrop');
 						}
 					},
 					
@@ -1066,7 +1196,7 @@ function mathOnMouseOut(evt)
 										this["set"+id](data[id]);
 									}
 								}
-								else this["set"+id](data[id]);
+								else if(this["set"+id]) this["set"+id](data[id]);
 							}
 						}
 					},
@@ -1159,16 +1289,16 @@ function mathOnMouseOut(evt)
 					
 				removeHighlightedNodes : function()
 					{
-						var item, indx, m=this.highlightedNodes.length;
+						var item, parent, indx, m=this.highlightedNodes.length;
 						
 						if(m>0)
 						{
 							this.removedNodes = this.highlightedNodes;
-							item = this.highlightedNodes[m-1];
-							indx = item.getIndex();
-							for (i=m-1;i>-0;i--)
+							for (var i=m-1;i>=0;i--)
 							{
 								item = this.highlightedNodes[i];
+								parent = item.parent;
+								indx=item.getIndex();
 							
 								if (item.EDisHighlighted)
 								{
@@ -1176,8 +1306,7 @@ function mathOnMouseOut(evt)
 									item.DOMSpan.removeAttribute("hlinprogress");
 									delete item.DOMSpan;
 								}
-								this.topparent.RemoveAt(indx);
-								indx--;
+								parent.RemoveAt(indx);
 							}
 							this.highlightedNodes = [];
 						}
@@ -1185,9 +1314,9 @@ function mathOnMouseOut(evt)
 				
 				pasteStackedNodes : function(def)
 					{
-						var item, temp, indx, m=this.removedNodes.length, hm=this.highlightedNodes.length;
+						var item, temp, parent, indx, m=this.removedNodes.length, hm=this.highlightedNodes.length;
 						
-						if(def&&def.mRow&&def.at&&m>0)
+						if(def&&def.mRow&&(def.at>=0)&&(m>0)&&def.Script)
 						{
 							if(hm>0)
 							{
@@ -1201,14 +1330,25 @@ function mathOnMouseOut(evt)
 							}
 							this.highlightedNodes = temp;
 							indx=def.at;
+							parent = def.parent;
+							
 							for (i=0;i<m;i++)
 							{
 								item = this.highlightedNodes[i];
 						
-								def = def.mRow.InsertAt(indx,item,def);
-								indx++;
+								def = def.parent.InsertAt(indx,item,def);
+								if(item.parent == def.parent)
+								{
+									indx++;
+								}
+								else
+								{
+									def.parent = item.parent;
+									indx = item.getIndex()+1;
+								}
 							}
-							def.callback = CALLBACK([this,this.updateHighlightedDOM]);
+							def.callback = {hook: this.updateHighlightedDOM, data: [], object: this};
+							
 							return def;
 						}
 						return null;
@@ -1224,7 +1364,8 @@ function mathOnMouseOut(evt)
 							
 							if (item.EDisHighlighted)
 							{
-									item.DOMSpan = document.getElementById ("MathJax-Span-"+item.spanID);
+								item.DOMSpan = document.getElementById ("MathJax-Span-"+item.spanID);
+								item.DOMSpan.setAttribute("ishighlighted","true");
 							}
 						}
 					},
@@ -1258,14 +1399,14 @@ function mathOnMouseOut(evt)
 									item = arguments[i];
 								
 									if(item instanceof Array)
-									{
-										for (j=0,n=item.length;j<n;j++)
+									{// this is probably a call from one of the mouse event handlers, the highlighting is progressing, thus the items get "hlinprogress" attribute. This attribute will be changed to "ishighlighted" on mouseup event when inProgress is set back to false.
+										for (var j=0,n=item.length;j<n;j++)
 										{
 											var itemitem = item[j];
 										
 											itemitem.EDisHighlighted = true;
 											if (itemitem.extraAttributes) {itemitem.extraAttributes.ishighlighted = true}
-											else itemitem.extraAttributes = {ishighilighted : true};
+											else itemitem.extraAttributes = {ishighlighted : true};
 								
 											itemitem.DOMSpan = document.getElementById ("MathJax-Span-"+itemitem.spanID);
 											itemitem.DOMSpan.setAttribute("hlinprogress","true");
@@ -1273,15 +1414,15 @@ function mathOnMouseOut(evt)
 										this.highlightedNodes.push.apply(this.highlightedNodes,item);
 									}
 									else
-									{
+									{// this is a call from editing code, thus the item gets "ishighlighted" attribute
 										if(item.isa(MML.mbase))
 										{
 											item.EDisHighlighted = true;
 											if (item.extraAttributes) {item.extraAttributes.ishighlighted = true}
-											else item.extraAttributes = {ishighilighted : true};
+											else item.extraAttributes = {ishighlighted : true};
 								
 											item.DOMSpan = document.getElementById ("MathJax-Span-"+item.spanID);
-											item.DOMSpan.setAttribute("hlinprogress","true");
+											item.DOMSpan.setAttribute("ishighlighted","true");
 											this.highlightedNodes.push(item);
 										}
 									}
@@ -1393,7 +1534,7 @@ function mathOnMouseOut(evt)
 								//highlight the nodes stretching from start to end
 								var indexes = this.topparent.getChildIndexes(this.topleft,this.topright),
 									l,r,direction = 1, temp, templist, tempindex, nodes = [], stack = [],
-									left, right, lefttree, righttree, lside, rside;
+									left, right, lefttree, righttree, lside, rside,leftindex,rightindex,leftside,rightside;
 							
 								l=indexes[0];
 								r=indexes[1];
@@ -1504,6 +1645,36 @@ function mathOnMouseOut(evt)
 							}
 						} 
 						return false
+					},
+				
+				checkDropMRow : function (span,drop)
+					{
+						if((this.savedSpan == span)&&(this.savedSpanState == drop))
+						{
+							return;
+						}
+						else
+						{
+							if(this.savedSpan&&(this.savedSpan.nodeName))
+							{
+								this.savedSpan.removeAttribute('draggingnodrop');
+								this.savedSpan.removeAttribute('draggingon');
+							}
+							this.savedSpan = span;
+							this.savedSpanState = drop;
+							if(span&&(span.nodeName))
+							{
+								if(drop == ED.Event.DROPOK)
+								{
+									span.setAttribute('draggingon','true');
+								}
+								else if(drop == ED.Event.NODROP)
+								{
+									span.setAttribute('draggingnodrop','true');
+								}
+							}
+						}
+						return;
 					}
 			},
 			
@@ -1641,7 +1812,7 @@ function mathOnMouseOut(evt)
 										this["set"+id](data[id]);
 									}
 								}
-								else this["set"+id](data[id]);
+								else if(this["set"+id]) this["set"+id](data[id]);
 							}
 						}
 					},
@@ -1882,10 +2053,30 @@ function mathOnMouseOut(evt)
 										}
 									}
 								}
+								return true;
 							}
 						}
-						return null;
+						return false;
 					},
+					
+				positionBlinker : function(def)
+					{
+						if(def&&def.Script&&def.inputField&&def.clickSpan&&def.toLeft)
+						{
+							ED.Event.focusObj.clearinputField();
+							ED.Event.focusObj.clearclickSpan();
+							ED.Event.focusObj.clearmRow();
+							ED.Event.focusObj.cleartoLeft();
+							ED.Event.focusObj.cleartoRight();
+							if(def.callback) def.Script.MathJax.elementJax.Rerender(def.callback);
+							else def.Script.MathJax.elementJax.Rerender();
+							def = def.toLeft.focusInFromRight(def.toLeft,def);
+							def.toRight = def.toLeft.getNext();
+							ED.Event.focusObj.setData(def);
+							ED.Event.focusObj.repositionBlinker();
+						}
+					},
+					
 				insertTemplate : function (tmpl)
 					{
 						var mml={},math,mrow,def={},indx,parent,focusPoint = 0,itemConsumed = false;
@@ -3141,13 +3332,15 @@ MathJax.Hub.Register.StartupHook(MathJax.Extension.Editor.config.OutputJax + " J
 			
 		RemoveAt : function (at,def)
 			{
+				var item;
 				if(!def)
 				{
 					def = {};
 				}
 				if(this.data&&this.data.length)
 				{
-					this.data.splice(at,1);
+					item = this.data.splice(at,1);
+					delete item[0].parent;
 					if(at>0)
 					{
 						def.toLeft = this.data[at-1];

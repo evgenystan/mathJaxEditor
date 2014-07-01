@@ -75,6 +75,22 @@
 /*	border:1px dotted #000000;*/
 }
 
+/* Style for drag-n-drop */
+.Mathjax [draggingon] *
+{
+	cursor:default !important;
+}
+
+.Mathjax [draggingnodrop] *
+{
+	cursor:no-drop !important;
+}
+
+body[draggingnodrop]
+{
+	cursor:no-drop !important;
+}
+
 /*************** DEBUG *************/
 .MathJax [lefthand],[righthand]
 {
